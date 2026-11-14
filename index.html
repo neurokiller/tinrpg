@@ -10,7 +10,6 @@
   #hint{position:fixed;left:50%;top:14px;transform:translateX(-50%);color:#cfe3ff;font-size:13px;
         background:rgba(8,14,22,.72);padding:8px 16px;border-radius:10px;border:1px solid #2a4560;
         pointer-events:none;transition:opacity 1s;letter-spacing:.5px;z-index:10;}
-  #hint kbd{background:#1a2a3a;padding:1px 5px;border-radius:4px;border:1px solid #3a5a80;font-family:inherit;}
   .overlay{position:fixed;inset:0;z-index:200;display:none;flex-direction:column;align-items:center;
            justify-content:flex-start;padding:40px 20px;overflow-y:auto;color:#cfe3ff;
            background:radial-gradient(ellipse at center, #16283a 0%, #07090c 80%);}
@@ -51,7 +50,7 @@
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hint">WASD mover &nbsp;•&nbsp; Mouse mirar &nbsp;•&nbsp; Clique/Espaço atacar &nbsp;•&nbsp; Shift esquivar &nbsp;•&nbsp; E interagir &nbsp;•&nbsp; 1 poção &nbsp;•&nbsp; L ranking</div>
+<div id="hint">WASD mover &nbsp;•&nbsp; Mouse mirar &nbsp;•&nbsp; Clique/Espaço atacar &nbsp;•&nbsp; Shift esquivar &nbsp;•&nbsp; E interagir/fogueira &nbsp;•&nbsp; 1 poção &nbsp;•&nbsp; L ranking</div>
 
 <div id="overlay" class="overlay">
   <h1>⚔ REINO DE AETHERIA ⚔</h1>
@@ -98,13 +97,12 @@
 "use strict";
 /* ============================================================
    REINO DE AETHERIA — RPG de ação (open world + dungeons)
-   + Rest em fogueira souls-like (vulnerável)
+   + Fogueira estilo Elden Ring (pausa TOTAL, aura luminosa)
+   + Espada Giratória após o 1º chefe
    + Leaderboard JSON com login
    + Boss customizado via boss.png
    ============================================================ */
 
-/* ------------------------- CONFIG LEADERBOARD ------------------------- */
-// Coloque aqui a URL raw do seu JSON no GitHub para ranking online
 const REMOTE_LEADERBOARD_URL = 'leaderboard.json';
 
 /* ------------------------- UTIL ------------------------- */
@@ -189,7 +187,6 @@ function generateWorld(){
     }
   }
 }
-
 function tileAtWorld(px,py){
   const tx = Math.floor(px/TS), ty = Math.floor(py/TS);
   if(tx<0||ty<0||tx>=WORLD_W||ty>=WORLD_H) return -1;
@@ -246,7 +243,7 @@ const THEMES = {
   volcano: {floor:'#38231e', floor2:'#452a24', wall:'#1a0f0c', wallTop:'#6a3a2a', accent:'#ff7040'},
 };
 
-/* Boss customizado: boss.png (colocado na mesma pasta do jogo) */
+/* boss.png customizado */
 const bossImg = new Image();
 let bossImgReady = false;
 bossImg.onload = ()=>{ bossImgReady = true; };
@@ -280,6 +277,9 @@ let bloodstain = null;
 let shake = 0;
 let gameTime = 0;
 
+let bonfireMode = false;       // pausa TOTAL
+let bonfireAmbient = 0;        // transição suave
+
 const player = {
   x:0, y:0, r:14,
   hp:130, maxHp:130,
@@ -295,9 +295,10 @@ const player = {
   potionCd:0, walkT:0,
   worldPos:{x:0,y:0},
   dead:false, deadTimer:0,
-  // souls-like rest
-  resting:false, restTimer:0, restDuration:1.4,
-  dashT:0, dashX:0, dashY:0
+  dashT:0, dashX:0, dashY:0,
+  atBonfire:null,
+  hasSpinningSword:false,
+  spinAngle:0, spinRadius:62
 };
 
 const cam = {x:0, y:0};
@@ -305,10 +306,31 @@ const cam = {x:0, y:0};
 /* ------------------------- INPUT ------------------------- */
 const keys = {};
 const mouse = {x:0, y:0, down:false};
+
 addEventListener('keydown', e=>{
-  if(['Space','ShiftLeft','ShiftRight','KeyE','KeyL','Digit1','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
-  if(!keys[e.code]) keys[e.code+'_p'] = true;
+  if(['Space','ShiftLeft','ShiftRight','KeyE','KeyL','Escape','Digit1','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  const firstPress = !keys[e.code];
+  if(firstPress) keys[e.code+'_p'] = true;
   keys[e.code] = true;
+  if(!firstPress) return;
+
+  // ---- Fogueira: E entra e E/Esc sai (handler direto, funciona mesmo pausado)
+  if(e.code === 'KeyE'){
+    if(bonfireMode){ leaveBonfire(); return; }
+    if(gameStarted && !gamePaused && !player.dead){
+      if(scene === 'world'){
+        for(const b of bonfires){
+          if(dist(player.x,player.y,b.x,b.y) < 70){ enterBonfire(b); return; }
+        }
+        for(const d of dungeonEntrances){
+          if(dist(player.x,player.y,d.x,d.y) < 78){ enterDungeon(d.idx); return; }
+        }
+      } else if(scene === 'dungeon' && dungeon){
+        if(dist(player.x,player.y,dungeon.exit.x,dungeon.exit.y) < 80){ exitDungeon(); return; }
+      }
+    }
+  }
+  if(e.code === 'Escape' && bonfireMode){ leaveBonfire(); return; }
   if(e.code === 'KeyL') toggleLeaderboard();
 });
 addEventListener('keyup', e=>{ keys[e.code]=false; });
@@ -479,7 +501,7 @@ function updateScore(force){
   const acc = getAccounts();
   if(!acc[currentUser]) return;
   acc[currentUser].level = player.level;
-  acc[currentUser].xp = player.xp + (player.level-1)*100; // XP acumulado
+  acc[currentUser].xp = player.xp + (player.level-1)*100;
   acc[currentUser].bosses = sessionBosses;
   acc[currentUser].gold = player.gold;
   saveAccounts(acc);
@@ -507,12 +529,20 @@ function startGame(){
   if(!gameStarted){
     gameStarted = true;
     initGame();
+    // Se já matou chefe antes, mantém a espada giratória
+    if(currentUser){
+      const acc = getAccounts();
+      if(acc[currentUser] && acc[currentUser].bosses >= 1){
+        player.hasSpinningSword = true;
+        setTimeout(()=> showHint('🗡 Espada Giratória restaurada do seu legado.'), 500);
+      }
+    }
     requestAnimationFrame(loop);
   }
 }
 
 function toggleLeaderboard(){
-  if(!gameStarted) return;
+  if(!gameStarted || bonfireMode) return;
   if(gamePaused && document.getElementById('overlay').classList.contains('on')){
     hideOverlay();
     gamePaused = false;
@@ -520,6 +550,103 @@ function toggleLeaderboard(){
     if(currentUser){ showLeaderboardPanel(); }
     else { renderLeaderboard(); showLeaderboardPanel(); }
   }
+}
+
+/* ============================================================
+   FOGUEIRA — PAUSA TOTAL + AURA (estilo Elden Ring)
+   ============================================================ */
+function enterBonfire(b){
+  player.atBonfire = b;
+  bonfireMode = true;
+  bonfireAmbient = 0;
+  // posiciona o jogador junto à fogueira
+  player.x = b.x;
+  player.y = b.y + 6;
+  // restauração total
+  player.hp = player.maxHp;
+  player.stam = player.maxStam;
+  player.mp = player.maxMp;
+  player.potions = Math.max(player.potions, 3);
+  player.invuln = 0;
+  player.atkCd = 0; player.dashCd = 0; player.dashT = 0; player.swing = 0;
+  // inimigos do mundo renascem (mas ficam congelados enquanto você descansa)
+  for(const e of worldEnemies){
+    if(e.dead){ e.dead=false; e.hp=e.maxHp; e.x=e.homeX; e.y=e.homeY; e.state='idle'; e.atkCd=1; }
+  }
+  burst(b.x, b.y, '#ffb703', 40, 200);
+  showHint('🔥 Fogueira acesa — pressione E ou Esc para levantar.');
+  updateScore(true);
+}
+
+function leaveBonfire(){
+  bonfireMode = false;
+  player.atBonfire = null;
+  player.invuln = 1.2;
+  showHint('Você se levanta da fogueira.');
+}
+
+function drawBonfireOverlay(){
+  const b = player.atBonfire;
+  if(!b) return;
+  const sx = b.x - cam.x;
+  const sy = b.y - cam.y;
+  const fade = Math.min(1, bonfireAmbient / 0.5);
+
+  // escurecer o mundo
+  const dg = ctx.createRadialGradient(sx, sy, 80, sx, sy, Math.max(VW, VH)*0.95);
+  dg.addColorStop(0, `rgba(10,8,4,${0.25*fade})`);
+  dg.addColorStop(0.35, `rgba(6,4,2,${0.62*fade})`);
+  dg.addColorStop(1, `rgba(0,0,0,${0.9*fade})`);
+  ctx.fillStyle = dg;
+  ctx.fillRect(0,0,VW,VH);
+
+  // aura pulsante
+  const pulse = 1 + Math.sin(gameTime*2.2)*0.12;
+  const ag = ctx.createRadialGradient(sx, sy, 4, sx, sy, 180*pulse);
+  ag.addColorStop(0,    `rgba(255,244,200,${0.95*fade})`);
+  ag.addColorStop(0.18, `rgba(255,210,90,${0.7*fade})`);
+  ag.addColorStop(0.5,  `rgba(255,130,30,${0.28*fade})`);
+  ag.addColorStop(1,    'rgba(255,80,0,0)');
+  ctx.fillStyle = ag;
+  ctx.beginPath(); ctx.arc(sx, sy, 180*pulse, 0, TAU); ctx.fill();
+
+  // anéis expansivos
+  for(let i=0;i<3;i++){
+    const t = ((gameTime*0.55 + i*0.33) % 1);
+    const r = 26 + t*150;
+    ctx.strokeStyle = `rgba(255,200,100,${(1-t)*0.55*fade})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.stroke();
+  }
+
+  // brasas subindo
+  for(let i=0;i<10;i++){
+    const t = ((gameTime*0.6 + i*0.13) % 1);
+    const ex = sx + Math.sin(gameTime*2 + i*1.7)*30;
+    const ey = sy - t*120;
+    ctx.globalAlpha = (1-t)*0.9*fade;
+    ctx.fillStyle = i%2 ? '#ffd166' : '#ff9f43';
+    ctx.beginPath(); ctx.arc(ex, ey, 2 + (1-t)*3, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // textos
+  ctx.textAlign = 'center';
+  ctx.globalAlpha = fade;
+  ctx.shadowColor = '#ffb703'; ctx.shadowBlur = 24;
+  ctx.fillStyle = '#ffd166';
+  ctx.font = 'bold 34px Trebuchet MS';
+  ctx.fillText('🔥 FOGUEIRA', VW/2, 96);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#ffe9b0';
+  ctx.font = 'bold 17px Trebuchet MS';
+  ctx.fillText('Pressione  E  ou  Esc  para levantar', VW/2, 130);
+
+  ctx.fillStyle = '#9ad8f8';
+  ctx.font = '14px Trebuchet MS';
+  ctx.fillText('Vida e stamina restauradas • inimigos renasceram', VW/2, 158);
+  ctx.globalAlpha = 1;
 }
 
 /* ------------------------- CRIAÇÃO DE INIMIGOS ------------------------- */
@@ -533,7 +660,7 @@ function makeEnemy(typeKey, x, y, mult=1){
     spd:d.spd, xp:Math.round(d.xp*mult), gold:Math.round(d.gold*mult),
     state:'idle', atkCd:0, windup:0, hitFlash:0,
     wobble:Math.random()*TAU, wanderT:0, wx:x, wy:y,
-    dead:false, respawn:0, vx:0, vy:0
+    dead:false, respawn:0, vx:0, vy:0, spinHitT:0
   };
 }
 
@@ -621,7 +748,8 @@ function genDungeon(def, idx){
     spd: bd.spd, col: bd.col, col2: bd.col2, shape: bd.shape,
     state:'idle', atkCd:2.5, windup:0, hitFlash:0, dead:false,
     wobble:0, phase:1, vx:0, vy:0,
-    special:null, specialT:0, alive:true, specialDone:false
+    special:null, specialT:0, alive:true, specialDone:false,
+    spinHitT:0
   };
   ents.push(boss);
 
@@ -648,7 +776,7 @@ function enterDungeon(i){
   player.worldPos = {x:player.x, y:player.y};
   dungeon = genDungeon(def, i);
   enemies = dungeon.entities;
-  hazards = []; floaters = []; particles = []; projectiles = [];
+  hazards = []; floaters = []; particles = [];
   player.x = dungeon.start.x;
   player.y = dungeon.start.y;
   player.hp = player.maxHp; player.stam = player.maxStam;
@@ -661,7 +789,7 @@ function exitDungeon(){
   player.x = player.worldPos.x;
   player.y = player.worldPos.y;
   dungeon = null;
-  hazards = []; floaters = []; particles = []; projectiles = [];
+  hazards = []; floaters = []; particles = [];
   showHint('Você voltou para o mundo aberto.');
 }
 
@@ -671,7 +799,7 @@ let hintTimer = 0;
 function showHint(txt){
   hintEl.innerHTML = txt;
   hintEl.style.opacity = 1;
-  hintTimer = 4;
+  hintTimer = 5;
 }
 
 function addFloater(x,y,txt,color,size=16){
@@ -711,6 +839,19 @@ function killEnemy(e){
     showHint('Chefe derrotado! Colete o tesouro e volte ao portal (E).');
     updateScore(true);
     toast('🏆 Chefe derrotado!', '#ffd166');
+
+    // 🗡 Recompensa: espada giratória no primeiro chefe
+    if(!player.hasSpinningSword){
+      player.hasSpinningSword = true;
+      player.spinAngle = 0;
+      setTimeout(()=>{
+        addFloater(player.x, player.y-90, '🗡 ESPADA GIRATÓRIA!', '#ffd166', 26);
+        burst(player.x, player.y, '#ffd166', 60, 320);
+        shake = 20;
+        showHint('🗡 Você obteve a ESPADA GIRATÓRIA! Ela orbita e corta tudo ao redor.');
+        toast('🗡 Espada Giratória obtida!', '#ffd166');
+      }, 400);
+    }
   } else {
     burst(e.x, e.y, e.col, 14, 190);
     player.gold += e.gold;
@@ -741,15 +882,7 @@ function gainXp(n){
 }
 
 function hurtPlayer(dmg, fromX, fromY){
-  if(player.invuln > 0 || player.dead) return;
-
-  // SOULS-LIKE: dano cancela o descanso
-  if(player.resting){
-    player.resting = false;
-    player.restTimer = 0;
-    addFloater(player.x, player.y-70, 'DESCANSO INTERROMPIDO', '#ff5f5f', 15);
-  }
-
+  if(player.invuln > 0 || player.dead || bonfireMode) return;
   player.hp -= dmg;
   player.invuln = 0.55;
   shake = Math.max(shake, 10);
@@ -762,7 +895,6 @@ function killPlayer(){
   player.hp = 0;
   player.dead = true;
   player.deadTimer = 2.2;
-  player.resting = false;
   bloodstain = { x:player.x, y:player.y, scene: scene, amount: Math.round(player.gold*0.7) };
   player.gold = Math.round(player.gold*0.3);
   shake = 20;
@@ -793,23 +925,6 @@ function updatePlayer(dt){
   player.invuln   = Math.max(0, player.invuln - dt);
   player.potionCd = Math.max(0, player.potionCd - dt);
   if(player.swing > 0) player.swing += dt*5.2, player.swing > 1.5 && (player.swing = 0);
-
-  // ===== SOULS-LIKE REST =====
-  if(player.resting){
-    player.restTimer += dt;
-    if(player.restTimer >= player.restDuration){
-      // completa
-      player.resting = false;
-      player.restTimer = 0;
-      player.hp = player.maxHp;
-      player.stam = player.maxStam;
-      player.potions = Math.max(player.potions, 3);
-      addFloater(player.x, player.y-70, 'DESCANSOU', '#ffd166', 22);
-      burst(player.x, player.y, '#ffb703', 30, 160);
-      showHint('Descansou. Inimigos renasceram!');
-    }
-    return; // bloqueia movimento/ataque durante descanso
-  }
 
   let mx = 0, my = 0;
   if(keys['KeyA']||keys['ArrowLeft'])  mx -= 1;
@@ -853,9 +968,22 @@ function updatePlayer(dt){
     burst(player.x, player.y, '#7dffb0', 16, 150);
   }
 
-  if(keys['KeyE_p']){
-    keys['KeyE_p'] = false;
-    tryInteract();
+  // ===== ESPADA GIRATÓRIA =====
+  if(player.hasSpinningSword){
+    player.spinAngle += dt * 5.4;
+    const sx = player.x + Math.cos(player.spinAngle) * player.spinRadius;
+    const sy = player.y + Math.sin(player.spinAngle) * player.spinRadius;
+    const swordDmg = player.atk * 0.9;
+    for(const e of enemies){
+      if(e.dead) continue;
+      if(e.spinHitT > 0){ e.spinHitT -= dt; continue; }
+      if(dist(e.x, e.y, sx, sy) < e.r + 24){
+        const ang = Math.atan2(e.y - player.y, e.x - player.x);
+        damageEnemy(e, swordDmg, ang);
+        e.spinHitT = 0.38;
+        burst(sx, sy, '#ffd166', 10, 180);
+      }
+    }
   }
 }
 
@@ -897,35 +1025,6 @@ function doAttack(){
   }
 }
 
-function tryInteract(){
-  if(scene === 'world'){
-    for(const b of bonfires){
-      if(dist(player.x,player.y,b.x,b.y) < 70){
-        if(player.resting) return;
-        // SOULS-LIKE: começa descanso, fica vulnerável
-        player.resting = true;
-        player.restTimer = 0;
-        player.invuln = 0;
-        // renasce inimigos mortos + agressiva inimigos próximos
-        for(const e of worldEnemies){
-          if(e.dead){ e.dead=false; e.hp=e.maxHp; e.x=e.homeX; e.y=e.homeY; e.state='idle'; e.atkCd=1; }
-          if(!e.dead && dist(e.x,e.y,player.x,player.y) < 1500) e.state = 'chase';
-        }
-        showHint('Descansando... (vulnerável!)');
-        burst(player.x, player.y, '#ffb703', 20, 120);
-        return;
-      }
-    }
-    for(const d of dungeonEntrances){
-      if(dist(player.x,player.y,d.x,d.y) < 78){ enterDungeon(d.idx); return; }
-    }
-  } else if(scene === 'dungeon'){
-    if(dist(player.x,player.y,dungeon.exit.x,dungeon.exit.y) < 80){
-      exitDungeon();
-    }
-  }
-}
-
 /* ------------------------- UPDATE: INIMIGOS ------------------------- */
 function updateEnemies(dt){
   for(const e of enemies){
@@ -951,13 +1050,8 @@ function updateEnemies(dt){
 
     if(e.isBoss){ updateBoss(e, dt, d); continue; }
 
-    // SOULS-LIKE: agressividade maior durante descanso
-    const aggroRange = player.resting ? 1500 : 420;
-    const idleRange  = player.resting ? 2000 : 640;
-
-    if(d < aggroRange && !player.dead){
-      if(e.state === 'idle') e.state = 'chase';
-    } else if(d > idleRange) e.state = 'idle';
+    if(d < 420 && !player.dead){ if(e.state === 'idle') e.state = 'chase'; }
+    else if(d > 640) e.state = 'idle';
 
     if(e.state === 'idle'){
       e.wanderT -= dt;
@@ -1234,17 +1328,12 @@ function drawDeco(d, x, y){
       ctx.beginPath(); ctx.ellipse(x, y, 13*s, 5*s, 0,0,TAU); ctx.fill();
       ctx.fillStyle='#7d7d86';
       ctx.beginPath();
-      ctx.moveTo(x-11*s, y);
-      ctx.lineTo(x-8*s, y-13*s);
-      ctx.lineTo(x+2*s, y-16*s);
-      ctx.lineTo(x+11*s, y-7*s);
-      ctx.lineTo(x+9*s, y);
+      ctx.moveTo(x-11*s, y); ctx.lineTo(x-8*s, y-13*s); ctx.lineTo(x+2*s, y-16*s);
+      ctx.lineTo(x+11*s, y-7*s); ctx.lineTo(x+9*s, y);
       ctx.closePath(); ctx.fill();
       ctx.fillStyle='#9a9aa4';
       ctx.beginPath();
-      ctx.moveTo(x-8*s, y-13*s);
-      ctx.lineTo(x+2*s, y-16*s);
-      ctx.lineTo(x+1*s, y-9*s);
+      ctx.moveTo(x-8*s, y-13*s); ctx.lineTo(x+2*s, y-16*s); ctx.lineTo(x+1*s, y-9*s);
       ctx.closePath(); ctx.fill();
       break;
     }
@@ -1271,26 +1360,22 @@ function drawCreature(e, sx, sy, t){
 
   const y = sy + bob;
 
-  /* ===== BOSS CUSTOMIZADO: boss.png ===== */
   if(e.isBoss && bossImgReady){
     const size = e.r * 3.4;
     const bx = sx - size/2;
     const by = y - size/2 - e.r*0.4;
-    // glow colorido por tema
     const gl = ctx.createRadialGradient(sx, y, 6, sx, y, size*0.75);
     gl.addColorStop(0, e.col + 'cc');
     gl.addColorStop(0.5, e.col + '55');
     gl.addColorStop(1, 'transparent');
     ctx.fillStyle = gl;
     ctx.beginPath(); ctx.arc(sx, y, size*0.75, 0, TAU); ctx.fill();
-    // imagem
     ctx.save();
     if(flash) ctx.globalAlpha = 0.75;
     ctx.shadowColor = e.col;
     ctx.shadowBlur = 20 + Math.sin(gameTime*3)*10;
     ctx.drawImage(bossImg, bx, by, size, size);
     ctx.restore();
-    // aura de fase 2
     if(e.phase === 2){
       ctx.save();
       ctx.globalAlpha = 0.3 + Math.sin(gameTime*8)*0.15;
@@ -1340,9 +1425,7 @@ function drawCreature(e, sx, sy, t){
       ctx.fillStyle = c2;
       ctx.fillRect(sx-e.r*0.5, y-e.r*0.15, e.r, e.r*0.9);
       ctx.fillStyle = c1;
-      ctx.beginPath();
-      ctx.roundRect(sx-e.r*0.55, y-e.r*0.7, e.r*1.1, e.r*0.85, 5);
-      ctx.fill();
+      ctx.beginPath(); ctx.roundRect(sx-e.r*0.55, y-e.r*0.7, e.r*1.1, e.r*0.85, 5); ctx.fill();
       ctx.beginPath(); ctx.arc(sx, y-e.r*1.0, e.r*0.45, 0, TAU); ctx.fill();
       ctx.fillStyle='#1a1a1a';
       ctx.beginPath(); ctx.arc(sx-e.r*0.16, y-e.r*1.02, 2,0,TAU); ctx.fill();
@@ -1418,7 +1501,7 @@ function drawCreature(e, sx, sy, t){
 function drawPlayer(){
   if(player.dead) return;
   const sx = player.x - cam.x, sy = player.y - cam.y;
-  const bob = player.resting ? 0 : Math.sin(player.walkT)*1.8;
+  const bob = Math.sin(player.walkT)*1.8;
   const y = sy + bob;
   const flick = player.invuln > 0 && Math.floor(gameTime*22)%2 === 0;
 
@@ -1428,27 +1511,9 @@ function drawPlayer(){
   ctx.save();
   if(flick) ctx.globalAlpha = 0.55;
 
-  // glow de descanso
-  if(player.resting){
-    const p = player.restTimer/player.restDuration;
-    const gl = ctx.createRadialGradient(sx, y, 4, sx, y, 50);
-    gl.addColorStop(0, 'rgba(255,200,80,' + (0.5 + Math.sin(gameTime*8)*0.2) + ')');
-    gl.addColorStop(1, 'rgba(255,200,80,0)');
-    ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(sx, y, 50, 0, TAU); ctx.fill();
-    // barra de progresso
-    const bw = 50, bh = 5, bx = sx-bw/2, by = y-58;
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(bx-1, by-1, bw+2, bh+2);
-    ctx.fillStyle = '#ffb703';
-    ctx.fillRect(bx, by, bw*p, bh);
-  }
-
   const aim = player.aim;
   ctx.fillStyle = '#7a2233';
-  ctx.beginPath();
-  ctx.ellipse(sx - Math.cos(aim)*8, y+2, 13, 16, 0, 0, TAU);
-  ctx.fill();
+  ctx.beginPath(); ctx.ellipse(sx - Math.cos(aim)*8, y+2, 13, 16, 0, 0, TAU); ctx.fill();
 
   ctx.fillStyle = '#3a6ecf';
   ctx.beginPath(); ctx.roundRect(sx-10, y-14, 20, 24, 7); ctx.fill();
@@ -1468,36 +1533,76 @@ function drawPlayer(){
   ctx.beginPath(); ctx.arc(sx-3, y-22, 1.8,0,TAU); ctx.fill();
   ctx.beginPath(); ctx.arc(sx+3, y-22, 1.8,0,TAU); ctx.fill();
 
-  // espada (escondida durante descanso)
-  if(!player.resting){
-    ctx.save();
-    ctx.translate(sx, y-6);
-    let swingAng = aim;
-    if(player.swing > 0){
-      const p = player.swing/1.5;
-      swingAng = aim - 1.15 + p*2.3;
-    }
-    ctx.rotate(swingAng);
-    ctx.fillStyle='#8a6a2a';
-    ctx.fillRect(10, -2.5, 8, 5);
-    const grad = ctx.createLinearGradient(18,0,50,0);
-    grad.addColorStop(0,'#dfe6ee'); grad.addColorStop(1,'#ffffff');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.moveTo(18,-4); ctx.lineTo(48,-2.5); ctx.lineTo(52,0); ctx.lineTo(48,2.5); ctx.lineTo(18,4);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
+  // espada normal
+  ctx.save();
+  ctx.translate(sx, y-6);
+  let swingAng = aim;
+  if(player.swing > 0){
+    const p = player.swing/1.5;
+    swingAng = aim - 1.15 + p*2.3;
+  }
+  ctx.rotate(swingAng);
+  ctx.fillStyle='#8a6a2a';
+  ctx.fillRect(10, -2.5, 8, 5);
+  const grad = ctx.createLinearGradient(18,0,50,0);
+  grad.addColorStop(0,'#dfe6ee'); grad.addColorStop(1,'#ffffff');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(18,-4); ctx.lineTo(48,-2.5); ctx.lineTo(52,0); ctx.lineTo(48,2.5); ctx.lineTo(18,4);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
 
-    if(player.swing > 0){
-      const p = player.swing/1.5;
-      ctx.globalAlpha = (1-p)*0.75;
-      ctx.strokeStyle = '#cfe3ff';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(sx, y-6, 52, aim - 1.2 + p*2.4 - 0.5, aim - 1.2 + p*2.4 + 0.2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+  if(player.swing > 0){
+    const p = player.swing/1.5;
+    ctx.globalAlpha = (1-p)*0.75;
+    ctx.strokeStyle = '#cfe3ff';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(sx, y-6, 52, aim - 1.2 + p*2.4 - 0.5, aim - 1.2 + p*2.4 + 0.2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // ===== ESPADA GIRATÓRIA =====
+  if(player.hasSpinningSword){
+    // anel fraco
+    ctx.strokeStyle = 'rgba(255,209,102,0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(sx, y, player.spinRadius, 0, TAU); ctx.stroke();
+
+    // rastro
+    for(let i=1;i<=7;i++){
+      const a = player.spinAngle - i*0.16;
+      const tx = sx + Math.cos(a)*player.spinRadius;
+      const ty = y  + Math.sin(a)*player.spinRadius;
+      ctx.globalAlpha = (1 - i/8) * 0.55;
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath(); ctx.arc(tx, ty, Math.max(0.5, 7 - i*0.9), 0, TAU); ctx.fill();
     }
+    ctx.globalAlpha = 1;
+
+    // lâmina
+    const sxp = sx + Math.cos(player.spinAngle)*player.spinRadius;
+    const syp = y  + Math.sin(player.spinAngle)*player.spinRadius;
+    ctx.save();
+    ctx.translate(sxp, syp);
+    ctx.rotate(player.spinAngle + Math.PI/2);
+    ctx.shadowColor = '#ffd166';
+    ctx.shadowBlur = 16;
+    const sg = ctx.createLinearGradient(0,-24,0,24);
+    sg.addColorStop(0,'#ffffff');
+    sg.addColorStop(0.5,'#eaf2ff');
+    sg.addColorStop(1,'#a0b8d0');
+    ctx.fillStyle = sg;
+    ctx.beginPath();
+    ctx.moveTo(-3,-26); ctx.lineTo(3,-26); ctx.lineTo(4.5, 14); ctx.lineTo(0, 22); ctx.lineTo(-4.5, 14);
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#d9b44a';
+    ctx.fillRect(-8, 14, 16, 4);
+    ctx.fillStyle = '#5a3a22';
+    ctx.fillRect(-2.5, 18, 5, 9);
+    ctx.restore();
   }
 
   ctx.restore();
@@ -1640,6 +1745,17 @@ function renderSceneEntities(){
     } else if(item.kind === 'fire'){
       const b = item.b;
       const sx = b.x-cam.x, sy = b.y-cam.y;
+      const isActive = bonfireMode && player.atBonfire === b;
+      // aura suave sempre visível (mais forte quando ativa)
+      const auraR = isActive ? 90 : 44;
+      const auraA = isActive ? 0.65 : 0.35;
+      const ag = ctx.createRadialGradient(sx, sy, 2, sx, sy, auraR);
+      ag.addColorStop(0, `rgba(255,220,120,${auraA})`);
+      ag.addColorStop(0.4, `rgba(255,160,50,${auraA*0.5})`);
+      ag.addColorStop(1, 'rgba(255,100,0,0)');
+      ctx.fillStyle = ag;
+      ctx.beginPath(); ctx.arc(sx, sy, auraR, 0, TAU); ctx.fill();
+
       ctx.fillStyle='rgba(0,0,0,0.3)';
       ctx.beginPath(); ctx.ellipse(sx, sy+8, 20, 7, 0,0,TAU); ctx.fill();
       ctx.fillStyle='#5a4028';
@@ -1651,7 +1767,7 @@ function renderSceneEntities(){
       ctx.beginPath(); ctx.arc(sx, sy-16, 26*f, 0, TAU); ctx.fill();
       ctx.fillStyle='#fff';
       ctx.font='bold 11px Trebuchet MS'; ctx.textAlign='center';
-      ctx.fillText('FOGUEIRA [E]', sx, sy-56);
+      ctx.fillText(isActive ? 'FOGUEIRA' : 'FOGUEIRA [E]', sx, sy-56);
     } else if(item.kind === 'portal'){
       const d = item.d;
       const sx = d.x-cam.x, sy = d.y-cam.y;
@@ -1687,7 +1803,7 @@ function renderSceneEntities(){
   }
 }
 
-/* ------------------------- RENDER: HAZARDS E PARTÍCULAS ------------------------- */
+/* ------------------------- RENDER: FX ------------------------- */
 function renderFX(){
   for(const h of hazards){
     const sx = h.x-cam.x, sy = h.y-cam.y;
@@ -1765,6 +1881,12 @@ function drawHUD(){
   ctx.fillText('⛁ ' + player.gold, 20, 120);
   ctx.fillStyle='#7dffb0';
   ctx.fillText('⚗ ' + player.potions + ' poções  [1]', 130, 120);
+
+  if(player.hasSpinningSword){
+    ctx.fillStyle='#ffd166';
+    ctx.font='bold 14px Trebuchet MS';
+    ctx.fillText('🗡 Espada Giratória ATIVA', 20, 145);
+  }
 
   if(currentUser){
     ctx.fillStyle='#9ad8f8';
@@ -1869,7 +1991,6 @@ function initGame(){
   spawnWorldEnemies();
   worldEnemies = enemies;
 
-  // inimigos perto de cada fogueira (para o descanso ter risco)
   for(const b of bonfires){
     for(let i=0;i<3;i++){
       const a = Math.random()*TAU, r = 120 + Math.random()*220;
@@ -1897,7 +2018,6 @@ function initGame(){
       used.push({x,y});
       dungeonEntrances.push({x, y, idx:i});
       bonfires.push({x:x+70, y:y+70});
-      // inimigos ao redor da dungeon
       for(let k=0;k<3;k++){
         const a2 = Math.random()*TAU, r2 = 100 + Math.random()*180;
         const ex = x + Math.cos(a2)*r2, ey = y + Math.sin(a2)*r2;
@@ -1920,33 +2040,40 @@ function loop(now){
   if(!gameStarted){ requestAnimationFrame(loop); return; }
   if(gamePaused){ requestAnimationFrame(loop); return; }
 
+  // gameTime sempre avança para efeitos de aura/anim
   gameTime += dt;
-  hintTimer -= dt;
-  if(hintTimer <= 0 && hintEl.style.opacity !== '0.25') hintEl.style.opacity = 0.25;
 
-  updatePlayer(dt);
-  updateEnemies(dt);
-  updateHazards(dt);
-  updateParticles(dt);
+  if(!bonfireMode){
+    // ===== UPDATE NORMAL =====
+    hintTimer -= dt;
+    if(hintTimer <= 0 && hintEl.style.opacity !== '0.25') hintEl.style.opacity = 0.25;
 
-  if(bloodstain && bloodstain.scene === scene && dist(player.x,player.y,bloodstain.x,bloodstain.y) < 46){
-    player.gold += bloodstain.amount;
-    addFloater(player.x, player.y-60, '+'+bloodstain.amount+' ouro', '#ffd166', 20);
-    burst(bloodstain.x, bloodstain.y, '#ffd166', 22, 180);
-    bloodstain = null;
-    updateScore(true);
+    updatePlayer(dt);
+    updateEnemies(dt);
+    updateHazards(dt);
+    updateParticles(dt);
+
+    if(bloodstain && bloodstain.scene === scene && dist(player.x,player.y,bloodstain.x,bloodstain.y) < 46){
+      player.gold += bloodstain.amount;
+      addFloater(player.x, player.y-60, '+'+bloodstain.amount+' ouro', '#ffd166', 20);
+      burst(bloodstain.x, bloodstain.y, '#ffd166', 22, 180);
+      bloodstain = null;
+      updateScore(true);
+    }
+
+    updateScore(false);
+    updateCamera(dt);
+  } else {
+    // ===== FOGUEIRA: TUDO PAUSADO =====
+    // apenas a aura suaviza a entrada
+    bonfireAmbient = Math.min(0.5, bonfireAmbient + dt);
   }
 
-  // save periódico
-  updateScore(false);
-
-  updateCamera(dt);
   shake *= Math.pow(0.001, dt);
 
+  // ===== RENDER =====
   ctx.save();
-  if(shake > 0.4){
-    ctx.translate(rnd(-shake,shake), rnd(-shake,shake));
-  }
+  if(shake > 0.4){ ctx.translate(rnd(-shake,shake), rnd(-shake,shake)); }
   ctx.fillStyle = '#0a0e14';
   ctx.fillRect(-40,-40,VW+80,VH+80);
 
@@ -1959,6 +2086,8 @@ function loop(now){
   ctx.restore();
 
   drawHUD();
+
+  if(bonfireMode) drawBonfireOverlay();
 
   for(const k in keys){ if(k.endsWith('_p')) keys[k] = false; }
 
