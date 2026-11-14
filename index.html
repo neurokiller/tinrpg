@@ -3,13 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>Reino de Aetheria</title>
+<title>Reino de Aetheria — ALPHA v1.0</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#07090c;font-family:'Trebuchet MS',Verdana,sans-serif;}
   canvas{display:block;cursor:crosshair;}
   #hint{position:fixed;left:50%;top:14px;transform:translateX(-50%);color:#cfe3ff;font-size:13px;
         background:rgba(8,14,22,.72);padding:8px 16px;border-radius:10px;border:1px solid #2a4560;
-        pointer-events:none;transition:opacity 1s;letter-spacing:.5px;z-index:10;}
+        pointer-events:none;transition:opacity 1s;letter-spacing:.5px;z-index:10;text-align:center;max-width:92vw;}
+  #version-badge{position:fixed;left:14px;bottom:14px;color:#ff7040;font-family:'Trebuchet MS',monospace;
+                 font-size:12px;font-weight:bold;letter-spacing:2px;opacity:.85;
+                 text-shadow:0 0 10px rgba(255,112,64,.5);pointer-events:none;z-index:50;}
   .overlay{position:fixed;inset:0;z-index:200;display:none;flex-direction:column;align-items:center;
            justify-content:flex-start;padding:40px 20px;overflow-y:auto;color:#cfe3ff;
            background:radial-gradient(ellipse at center, #16283a 0%, #07090c 80%);}
@@ -28,6 +31,7 @@
   .overlay button.green:hover{filter:brightness(1.3);}
   .overlay button.gray{background:linear-gradient(#3a3a3a, #1a1a1a);border-color:#555;opacity:.6;cursor:not-allowed;}
   .overlay button.gray:hover{transform:none;filter:none;}
+  .overlay button.red{background:linear-gradient(#6a2a2a, #4a1a1a);border-color:#8a3a3a;}
   #lb-wrap{max-height:420px;overflow-y:auto;border-radius:10px;border:1px solid #1a2a3a;
            background:rgba(0,0,0,.35);padding:6px 4px;margin-top:6px;min-width:min(700px,92vw);}
   #lb-table{border-collapse:collapse;width:100%;font-size:14px;}
@@ -43,7 +47,6 @@
          border:1px solid #3a5a80;border-radius:12px;padding:22px 34px;color:#ffd166;font-size:20px;
          font-weight:bold;z-index:500;pointer-events:none;box-shadow:0 8px 40px rgba(0,0,0,.6);
          transition:opacity .3s;text-align:center;}
-  /* LOJA */
   #shop-overlay{background:radial-gradient(ellipse at center, #2a1a10 0%, #0a0604 80%);}
   #shop-gold{font-size:22px;color:#ffd166;font-weight:bold;margin:8px 0 18px;}
   #shop-items{width:100%;display:flex;flex-direction:column;align-items:center;}
@@ -54,7 +57,14 @@
   .shop-item:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(106,154,192,.25);}
   .shop-item .name{color:#ffd166;font-weight:bold;font-size:16px;}
   .shop-item .desc{color:#8ab0d0;font-size:13px;margin-top:4px;max-width:320px;}
-  .shop-item .owned{color:#7dffb0;font-size:13px;font-weight:bold;}
+  #debug-overlay{background:radial-gradient(ellipse at center, #1a0a2a 0%, #050208 80%);}
+  #debug-overlay h1{color:#ff7040;text-shadow:0 0 24px rgba(255,112,64,.7);}
+  .dbg-row{display:flex;gap:10px;align-items:center;margin:6px 0;}
+  .dbg-row label{color:#cfe3ff;font-size:14px;min-width:180px;text-align:right;}
+  .dbg-row input{padding:9px 12px;border-radius:6px;border:1px solid #3a5a80;
+                 background:#0f1a26;color:#fff;font-size:14px;width:150px;font-family:inherit;}
+  .dbg-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;max-width:min(640px,92vw);}
+  .dbg-grid button{width:100%;}
   ::-webkit-scrollbar{width:10px;height:10px;}
   ::-webkit-scrollbar-track{background:#0a1218;border-radius:6px;}
   ::-webkit-scrollbar-thumb{background:#2a4560;border-radius:6px;}
@@ -63,10 +73,12 @@
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="hint">WASD mover &nbsp;•&nbsp; Mouse mirar &nbsp;•&nbsp; Clique/Espaço atacar &nbsp;•&nbsp; Shift esquivar &nbsp;•&nbsp; E interagir &nbsp;•&nbsp; T truck &nbsp;•&nbsp; F fogo &nbsp;•&nbsp; 1 poção &nbsp;•&nbsp; L ranking</div>
+<div id="hint">WASD mover &nbsp;•&nbsp; Mouse mirar &nbsp;•&nbsp; Espaço atacar &nbsp;•&nbsp; Shift dash &nbsp;•&nbsp; E interagir &nbsp;•&nbsp; G galáxia &nbsp;•&nbsp; F fogo (truck) &nbsp;•&nbsp; F2 debug</div>
+<div id="version-badge">ALPHA v1.0</div>
 
 <div id="overlay" class="overlay">
   <h1>⚔ REINO DE AETHERIA ⚔</h1>
+  <div style="color:#ff7040;font-size:22px;font-weight:bold;letter-spacing:5px;margin-bottom:10px;text-shadow:0 0 20px rgba(255,112,64,.7);">ALPHA v1.0</div>
   <div class="sub" id="ov-sub">Entre ou crie uma conta para competir no ranking</div>
   <div id="auth-section">
     <div style="display:flex;flex-direction:column;align-items:center;">
@@ -81,7 +93,7 @@
   </div>
   <div id="lb-section" style="display:none;width:100%;align-items:center;flex-direction:column;">
     <h1 style="font-size:26px;margin:6px 0 14px;">🏆 Ranking Global</h1>
-    <div style="color:#8ab0d0;font-size:13px;margin-bottom:8px;">Você está logado como <b id="lb-me" style="color:#ffd166;"></b></div>
+    <div style="color:#8ab0d0;font-size:13px;margin-bottom:8px;">Logado como <b id="lb-me" style="color:#ffd166;"></b></div>
     <div id="lb-wrap">
       <table id="lb-table">
         <thead><tr><th>#</th><th>Jogador</th><th>Nível</th><th>Chefes</th><th>XP</th><th>Ouro</th></tr></thead>
@@ -95,7 +107,6 @@
       <button onclick="logout()" class="gray">Sair</button>
     </div>
     <p class="lb-note">
-      Suba de nível e derrote chefes para subir no ranking.<br>
       Envie <b style="color:#9ad8f8;">leaderboard.json</b> no GitHub para ranking online.
     </p>
   </div>
@@ -110,32 +121,62 @@
   </div>
 </div>
 
+<div id="debug-overlay" class="overlay">
+  <h1>🔧 DEBUG MENU — ALPHA</h1>
+  <div style="color:#8ab0d0;font-size:13px;margin-bottom:16px;">Ferramentas de teste. Pressione F2 para fechar.</div>
+  <div class="dbg-row">
+    <label>Ouro:</label>
+    <input id="dbg-gold" type="number" placeholder="1000000" value="1000000">
+    <button onclick="debugSetGold()">Setar</button>
+  </div>
+  <div class="dbg-row">
+    <label>Multiplicador de velocidade:</label>
+    <input id="dbg-speed" type="number" placeholder="1" value="1" step="0.1">
+    <button onclick="debugSetSpeed()">Setar</button>
+  </div>
+  <div class="dbg-row">
+    <label>Nível:</label>
+    <input id="dbg-level" type="number" placeholder="99" value="99">
+    <button onclick="debugSetLevel()">Setar</button>
+  </div>
+  <div class="dbg-grid">
+    <button onclick="debugGoldMax()" class="green">💰 +1.000.000 Ouro</button>
+    <button onclick="debugGodmode()">🛡 Godmode: <span id="dbg-god">OFF</span></button>
+    <button onclick="debugSpawnTruck()">🚛 Spawnar Monster Truck</button>
+    <button onclick="debugSpawnShip()">🚀 Dar Nave Espacial</button>
+    <button onclick="debugGiveSword()">🗡 Dar Espada Giratória</button>
+    <button onclick="debugHealFull()">❤ Curar Total</button>
+    <button onclick="debugKillAll()" class="red">💀 Matar Todos</button>
+    <button onclick="debugResetSpeed()">↩ Resetar Velocidade</button>
+  </div>
+  <div class="lb-btns" style="margin-top:24px;">
+    <button onclick="closeDebug()" class="green">Fechar (F2)</button>
+  </div>
+</div>
+
 <div id="toast" class="toast" style="opacity:0;"></div>
 
 <script>
 "use strict";
-/* ============================================================
-   REINO DE AETHERIA — RPG (open world + dungeons + truck)
-   + Fogueira Elden Ring (pausa total + aura)
-   + Espada giratória após 1º chefe
-   + Loja: botas de velocidade + Monster Truck
-   + Truck: destrói árvores, anda na água, F = fogo
-   + Fogo queima árvore, derrete gelo, evapora água, mata monstros
-   ============================================================ */
-
+/* REINO DE AETHERIA — ALPHA v1.0
+   World: infinite procedural (chunked), many biomes
+   Galaxy mode: ship + bombs + enemy farming
+   Debug menu: F2
+*/
+const VERSION = 'ALPHA v1.0';
 const REMOTE_LEADERBOARD_URL = 'leaderboard.json';
 
-/* ------------------------- UTIL ------------------------- */
-const TAU = Math.PI * 2;
+/* ---------- UTIL ---------- */
+const TAU = Math.PI*2;
 const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
-const lerp  = (a,b,t)=> a+(b-a)*t;
-const rnd   = (a,b)=> a + Math.random()*(b-a);
-const rndi  = n => Math.floor(Math.random()*n);
-const dist  = (ax,ay,bx,by)=> Math.hypot(ax-bx, ay-by);
-function angDiff(a,b){ let d=a-b; while(d> Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU; return d; }
+const lerp = (a,b,t)=> a+(b-a)*t;
+const rnd = (a,b)=> a+Math.random()*(b-a);
+const rndi = n => Math.floor(Math.random()*n);
+const dist = (ax,ay,bx,by)=> Math.hypot(ax-bx, ay-by);
+function angDiff(a,b){ let d=a-b; while(d>Math.PI)d-=TAU; while(d<-Math.PI)d+=TAU; return d; }
 
 function hash2(x,y,s){
-  let h = Math.imul(x|0, 374761393) ^ Math.imul(y|0, 668265263) ^ Math.imul(s|0, 1442695041);
+  let h = Math.imul(x|0,374761393) ^ Math.imul(y|0,668265263) ^ Math.imul(s|0,1442695041);
   h = Math.imul(h ^ (h>>>13), 1274126177);
   return ((h ^ (h>>>16))>>>0) / 4294967296;
 }
@@ -144,156 +185,138 @@ function valueNoise(x,y,scale,seed){
   const ix=Math.floor(fx), iy=Math.floor(fy);
   const tx=fx-ix, ty=fy-iy;
   const sx=tx*tx*(3-2*tx), sy=ty*ty*(3-2*ty);
-  const a=hash2(ix,iy,seed),     b=hash2(ix+1,iy,seed);
-  const c=hash2(ix,iy+1,seed),   d=hash2(ix+1,iy+1,seed);
+  const a=hash2(ix,iy,seed), b=hash2(ix+1,iy,seed);
+  const c=hash2(ix,iy+1,seed), d=hash2(ix+1,iy+1,seed);
   return lerp(lerp(a,b,sx), lerp(c,d,sx), sy);
 }
 function fbm(x,y,scale,seed,oct=3){
   let v=0, amp=1, tot=0, s=scale;
-  for(let i=0;i<oct;i++){
-    v += valueNoise(x,y,s,seed+i*131)*amp;
-    tot += amp; amp*=0.5; s*=0.5;
-  }
+  for(let i=0;i<oct;i++){ v+=valueNoise(x,y,s,seed+i*131)*amp; tot+=amp; amp*=0.5; s*=0.5; }
   return v/tot;
 }
 
+/* ---------- CANVAS ---------- */
 const cvs = document.getElementById('game');
 const ctx = cvs.getContext('2d');
 let VW=0, VH=0;
-function resize(){ VW = cvs.width = innerWidth; VH = cvs.height = innerHeight; }
+function resize(){ VW=cvs.width=innerWidth; VH=cvs.height=innerHeight; }
 addEventListener('resize', resize); resize();
 
 const TS = 32;
-const WORLD_W = 200, WORLD_H = 200;
-const T = { WATER:0, SAND:1, GRASS:2, FOREST:3, SNOW:4, ROCK:5, SWAMP:6 };
+
+/* ---------- TILES ---------- */
+const T = { WATER:0, SAND:1, GRASS:2, FOREST:3, SNOW:4, ROCK:5, SWAMP:6,
+            DESERT:7, VOLCANO:8, TUNDRA:9, JUNGLE:10, SAVANNA:11 };
 const TILE_RGB = {
-  0:[40,92,140], 1:[214,196,138], 2:[76,140,62],
-  3:[46,106,45], 4:[228,238,246], 5:[120,120,126], 6:[74,96,58]
+  0:[40,92,140], 1:[214,196,138], 2:[76,140,62], 3:[46,106,45],
+  4:[228,238,246], 5:[120,120,126], 6:[74,96,58], 7:[232,200,110],
+  8:[70,32,20], 9:[180,200,220], 10:[30,100,40], 11:[190,170,80]
 };
 
-/* ------------------------- MUNDO ------------------------- */
-let worldTiles, worldColor;
-function generateWorld(){
-  worldTiles = new Uint8Array(WORLD_W*WORLD_H);
-  worldColor = new Array(WORLD_W*WORLD_H);
-  for(let y=0;y<WORLD_H;y++){
-    for(let x=0;x<WORLD_W;x++){
-      const i = y*WORLD_W+x;
-      let h = fbm(x,y,26,1337);
-      h = 0.5 + (h-0.5)*1.95;
-      const edge = Math.min(x, y, WORLD_W-1-x, WORLD_H-1-y);
-      if(edge < 10) h -= (10-edge)*0.055;
-      const m  = fbm(x,y,38,777);
-      const tp = fbm(x,y,64,4242);
-      let t;
-      if(h < 0.34)       t = T.WATER;
-      else if(h < 0.385) t = T.SAND;
-      else if(h > 0.735) t = T.ROCK;
-      else if(tp > 0.605 && m < 0.52) t = T.SAND;
-      else if(tp < 0.395) t = T.SNOW;
-      else if(m > 0.575)  t = T.SWAMP;
-      else if(m > 0.475)  t = T.FOREST;
-      else                t = T.GRASS;
-      worldTiles[i] = t;
-      const c = TILE_RGB[t];
-      const v = 0.87 + hash2(x,y,55)*0.26;
-      worldColor[i] = `rgb(${Math.min(255,c[0]*v)|0},${Math.min(255,c[1]*v)|0},${Math.min(255,c[2]*v)|0})`;
-    }
+/* ---------- CHUNK / INFINITE WORLD ---------- */
+const CHUNK = 16;
+const chunkCache = new Map();
+const tileOverrides = new Map(); // "x,y" -> tile
+
+function computeTile(tx, ty){
+  const elev = fbm(tx, ty, 40, 1337, 4);
+  const temp = fbm(tx, ty, 120, 555, 3);
+  const moist = fbm(tx, ty, 90, 777, 3);
+  if(elev < 0.35) return T.WATER;
+  if(elev < 0.40) return T.SAND;
+  if(elev > 0.78) return T.ROCK;
+  if(elev > 0.72 && temp < 0.4) return T.SNOW;
+  if(temp < 0.28) return moist > 0.6 ? T.SNOW : T.TUNDRA;
+  if(temp > 0.72){
+    if(moist < 0.35) return T.DESERT;
+    if(moist > 0.62) return T.JUNGLE;
+    return T.SAVANNA;
   }
+  if(elev > 0.65 && moist < 0.4) return T.VOLCANO;
+  if(moist > 0.68) return T.SWAMP;
+  if(moist > 0.5) return T.FOREST;
+  return T.GRASS;
 }
-function setTile(tx, ty, newTile){
-  if(tx<0||ty<0||tx>=WORLD_W||ty>=WORLD_H) return;
-  const i = ty*WORLD_W+tx;
-  if(worldTiles[i] === newTile) return;
-  worldTiles[i] = newTile;
-  const c = TILE_RGB[newTile];
-  const v = 0.87 + hash2(tx,ty,55)*0.26;
-  worldColor[i] = `rgb(${Math.min(255,c[0]*v)|0},${Math.min(255,c[1]*v)|0},${Math.min(255,c[2]*v)|0})`;
-  if(mctx){
-    mctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
-    mctx.fillRect(tx, ty, 1, 1);
+function getChunkTile(tx, ty){
+  const cx = Math.floor(tx/CHUNK), cy = Math.floor(ty/CHUNK);
+  const key = cx+','+cy;
+  let chunk = chunkCache.get(key);
+  if(!chunk){
+    if(chunkCache.size > 250) chunkCache.delete(chunkCache.keys().next().value);
+    chunk = new Uint8Array(CHUNK*CHUNK);
+    for(let ly=0; ly<CHUNK; ly++)
+      for(let lx=0; lx<CHUNK; lx++)
+        chunk[ly*CHUNK+lx] = computeTile(cx*CHUNK+lx, cy*CHUNK+ly);
+    chunkCache.set(key, chunk);
   }
+  return chunk[(ty-cy*CHUNK)*CHUNK + (tx-cx*CHUNK)];
 }
-function tileAtWorld(px,py){
+function tileAtWorld(px, py){
   const tx = Math.floor(px/TS), ty = Math.floor(py/TS);
-  if(tx<0||ty<0||tx>=WORLD_W||ty>=WORLD_H) return -1;
-  return worldTiles[ty*WORLD_W+tx];
+  const key = tx+','+ty;
+  if(tileOverrides.has(key)) return tileOverrides.get(key);
+  return getChunkTile(tx, ty);
 }
-function walkableWorld(px,py){
-  const t = tileAtWorld(px,py);
-  return t !== T.WATER && t !== -1;
+function setTile(tx, ty, t){
+  if(tileOverrides.size > 30000) tileOverrides.clear();
+  tileOverrides.set(tx+','+ty, t);
 }
-function walkableWorldBasic(px,py){
-  const t = tileAtWorld(px,py);
-  return t !== T.WATER && t !== -1;
-}
-
-/* ------------------------- MINIMAPA ------------------------- */
-let miniCv, mctx;
-function buildMinimap(){
-  miniCv = document.createElement('canvas');
-  miniCv.width = WORLD_W; miniCv.height = WORLD_H;
-  mctx = miniCv.getContext('2d');
-  const img = mctx.createImageData(WORLD_W, WORLD_H);
-  for(let i=0;i<WORLD_W*WORLD_H;i++){
-    const c = TILE_RGB[worldTiles[i]];
-    img.data[i*4]=c[0]; img.data[i*4+1]=c[1]; img.data[i*4+2]=c[2]; img.data[i*4+3]=255;
-  }
-  mctx.putImageData(img,0,0);
+function walkableWorld(px, py){
+  const t = tileAtWorld(px, py);
+  return t !== T.WATER;
 }
 
-/* ------------------------- INIMIGOS ------------------------- */
+/* ---------- ENEMIES ---------- */
 const ENEMIES = {
-  slime:    {name:'Slime',        col:'#7fe07f', col2:'#3d9a3d', r:13, hp:34,  dmg:7,  spd:44,  xp:14, gold:4,  shape:'slime'},
-  boar:     {name:'Javali',       col:'#a0724a', col2:'#6b4527', r:17, hp:56,  dmg:11, spd:92,  xp:22, gold:6,  shape:'beast'},
-  wolf:     {name:'Lobo',         col:'#8a8a96', col2:'#5a5a66', r:15, hp:46,  dmg:9,  spd:118, xp:20, gold:5,  shape:'beast'},
-  treant:   {name:'Treant',       col:'#4f8a3f', col2:'#2f5a26', r:21, hp:96,  dmg:15, spd:52,  xp:38, gold:10, shape:'humanoid'},
-  scorpion: {name:'Escorpião',    col:'#c8892f', col2:'#8a5a1a', r:16, hp:62,  dmg:12, spd:74,  xp:26, gold:7,  shape:'beast'},
-  bandit:   {name:'Bandido',      col:'#b05a5a', col2:'#6b3030', r:15, hp:74,  dmg:14, spd:98,  xp:30, gold:14, shape:'humanoid'},
-  frostwolf:{name:'Lobo Gélido',  col:'#a8d8f0', col2:'#5a90b8', r:16, hp:84,  dmg:16, spd:124, xp:34, gold:9,  shape:'beast'},
-  golem:    {name:'Golem',        col:'#8a8a96', col2:'#5a5a66', r:24, hp:160, dmg:21, spd:46,  xp:62, gold:18, shape:'golem'},
-  toad:     {name:'Sapo Gigante', col:'#6fa85a', col2:'#3f6b33', r:17, hp:72,  dmg:12, spd:62,  xp:28, gold:7,  shape:'slime'},
-  wraith:   {name:'Espectro',     col:'#9a7fd0', col2:'#5a3f90', r:17, hp:66,  dmg:17, spd:88,  xp:36, gold:12, shape:'ghost'},
-  bat:      {name:'Morcego',      col:'#7a5a7a', col2:'#3a2a3a', r:12, hp:42,  dmg:10, spd:134, xp:18, gold:5,  shape:'bat'},
+  slime:{name:'Slime',col:'#7fe07f',col2:'#3d9a3d',r:13,hp:34,dmg:7,spd:44,xp:14,gold:4,shape:'slime'},
+  boar:{name:'Javali',col:'#a0724a',col2:'#6b4527',r:17,hp:56,dmg:11,spd:92,xp:22,gold:6,shape:'beast'},
+  wolf:{name:'Lobo',col:'#8a8a96',col2:'#5a5a66',r:15,hp:46,dmg:9,spd:118,xp:20,gold:5,shape:'beast'},
+  treant:{name:'Treant',col:'#4f8a3f',col2:'#2f5a26',r:21,hp:96,dmg:15,spd:52,xp:38,gold:10,shape:'humanoid'},
+  scorpion:{name:'Escorpião',col:'#c8892f',col2:'#8a5a1a',r:16,hp:62,dmg:12,spd:74,xp:26,gold:7,shape:'beast'},
+  bandit:{name:'Bandido',col:'#b05a5a',col2:'#6b3030',r:15,hp:74,dmg:14,spd:98,xp:30,gold:14,shape:'humanoid'},
+  frostwolf:{name:'Lobo Gélido',col:'#a8d8f0',col2:'#5a90b8',r:16,hp:84,dmg:16,spd:124,xp:34,gold:9,shape:'beast'},
+  golem:{name:'Golem',col:'#8a8a96',col2:'#5a5a66',r:24,hp:160,dmg:21,spd:46,xp:62,gold:18,shape:'golem'},
+  toad:{name:'Sapo Gigante',col:'#6fa85a',col2:'#3f6b33',r:17,hp:72,dmg:12,spd:62,xp:28,gold:7,shape:'slime'},
+  wraith:{name:'Espectro',col:'#9a7fd0',col2:'#5a3f90',r:17,hp:66,dmg:17,spd:88,xp:36,gold:12,shape:'ghost'},
+  bat:{name:'Morcego',col:'#7a5a7a',col2:'#3a2a3a',r:12,hp:42,dmg:10,spd:134,xp:18,gold:5,shape:'bat'},
 };
 const BIOME_ENEMIES = {
-  [T.GRASS]:['slime','boar','slime'],
-  [T.FOREST]:['wolf','treant','slime'],
-  [T.SAND]:['scorpion','bandit','scorpion'],
-  [T.SNOW]:['frostwolf','golem','frostwolf'],
-  [T.SWAMP]:['toad','wraith','bat'],
-  [T.ROCK]:['golem','bat','bandit'],
+  [T.GRASS]:['slime','boar','slime'], [T.FOREST]:['wolf','treant','slime'],
+  [T.SAND]:['scorpion','bandit','scorpion'], [T.SNOW]:['frostwolf','golem','frostwolf'],
+  [T.SWAMP]:['toad','wraith','bat'], [T.ROCK]:['golem','bat','bandit'],
+  [T.DESERT]:['scorpion','bandit','scorpion'], [T.VOLCANO]:['golem','wraith','bandit'],
+  [T.TUNDRA]:['frostwolf','golem','wraith'], [T.JUNGLE]:['toad','wolf','treant'],
+  [T.SAVANNA]:['boar','bandit','wolf'],
 };
 
-/* ------------------------- DUNGEONS ------------------------- */
+/* ---------- DUNGEONS ---------- */
 const THEMES = {
-  forest:  {floor:'#2e3a26', floor2:'#37472e', wall:'#161e13', wallTop:'#3f5233', accent:'#7fc06a'},
-  ice:     {floor:'#28394a', floor2:'#324758', wall:'#121b24', wallTop:'#4a6a88', accent:'#9ad8f8'},
-  desert:  {floor:'#463c28', floor2:'#524733', wall:'#241d12', wallTop:'#7a6440', accent:'#e8c878'},
-  swamp:   {floor:'#28311f', floor2:'#303b26', wall:'#12180f', wallTop:'#3d4a33', accent:'#8fbb60'},
-  volcano: {floor:'#38231e', floor2:'#452a24', wall:'#1a0f0c', wallTop:'#6a3a2a', accent:'#ff7040'},
+  forest:{floor:'#2e3a26',floor2:'#37472e',wall:'#161e13',wallTop:'#3f5233',accent:'#7fc06a'},
+  ice:{floor:'#28394a',floor2:'#324758',wall:'#121b24',wallTop:'#4a6a88',accent:'#9ad8f8'},
+  desert:{floor:'#463c28',floor2:'#524733',wall:'#241d12',wallTop:'#7a6440',accent:'#e8c878'},
+  swamp:{floor:'#28311f',floor2:'#303b26',wall:'#12180f',wallTop:'#3d4a33',accent:'#8fbb60'},
+  volcano:{floor:'#38231e',floor2:'#452a24',wall:'#1a0f0c',wallTop:'#6a3a2a',accent:'#ff7040'},
 };
 const bossImg = new Image();
 let bossImgReady = false;
 bossImg.onload = ()=>{ bossImgReady = true; };
-bossImg.onerror = ()=>{ bossImgReady = false; };
 bossImg.src = 'boss.png';
 const BOSS_DEFS = {
-  forest:  {name:'Tintintleiro, o Ancestral',   hp:760,  dmg:26, spd:74,  col:'#4f8a3f', col2:'#2f5a26', shape:'golem',    color:'#7fc06a'},
-  ice:     {name:'Ymir, o Colosso de Gelo',     hp:920,  dmg:31, spd:62,  col:'#8ec8e8', col2:'#4a7a9a', shape:'golem',    color:'#9ad8f8'},
-  desert:  {name:'Anúbis, Guardião das Areias', hp:860,  dmg:29, spd:92,  col:'#d8b870', col2:'#8a6a2a', shape:'humanoid', color:'#e8c878'},
-  swamp:   {name:'Hidra do Pântano',            hp:980,  dmg:33, spd:80,  col:'#7a9a5a', col2:'#3d5a2a', shape:'beast',    color:'#8fbb60'},
-  volcano: {name:'Ignis, o Devorador',          hp:1200, dmg:38, spd:98,  col:'#e06030', col2:'#8a2a10', shape:'golem',    color:'#ff7040'},
+  forest:{name:'Tintintleiro, o Ancestral',hp:760,dmg:26,spd:74,col:'#4f8a3f',col2:'#2f5a26',shape:'golem'},
+  ice:{name:'Ymir, o Colosso de Gelo',hp:920,dmg:31,spd:62,col:'#8ec8e8',col2:'#4a7a9a',shape:'golem'},
+  desert:{name:'Anúbis, Guardião das Areias',hp:860,dmg:29,spd:92,col:'#d8b870',col2:'#8a6a2a',shape:'humanoid'},
+  swamp:{name:'Hidra do Pântano',hp:980,dmg:33,spd:80,col:'#7a9a5a',col2:'#3d5a2a',shape:'beast'},
+  volcano:{name:'Ignis, o Devorador',hp:1200,dmg:38,spd:98,col:'#e06030',col2:'#8a2a10',shape:'golem'},
 };
 const DUNGEON_DEFS = [
-  {name:'Caverna das Raízes', theme:'forest',  enemies:['treant','wolf','slime']},
-  {name:'Cripta de Gelo',     theme:'ice',     enemies:['frostwolf','golem','wraith']},
-  {name:'Tumba das Areias',   theme:'desert',  enemies:['scorpion','bandit','wraith']},
-  {name:'Pântano Podre',      theme:'swamp',   enemies:['toad','wraith','bat']},
-  {name:'Forja do Vulcão',    theme:'volcano', enemies:['golem','bandit','bat']},
+  {name:'Caverna das Raízes',theme:'forest',enemies:['treant','wolf','slime']},
+  {name:'Cripta de Gelo',theme:'ice',enemies:['frostwolf','golem','wraith']},
+  {name:'Tumba das Areias',theme:'desert',enemies:['scorpion','bandit','wraith']},
+  {name:'Pântano Podre',theme:'swamp',enemies:['toad','wraith','bat']},
+  {name:'Forja do Vulcão',theme:'volcano',enemies:['golem','bandit','bat']},
 ];
 
-/* ------------------------- ESTADO ------------------------- */
+/* ---------- STATE ---------- */
 let scene = 'world';
 let dungeon = null;
 let enemies = [];
@@ -308,84 +331,77 @@ let bonfireMode = false;
 let bonfireAmbient = 0;
 let shopOpen = false;
 let shop = null;
-let truck = { x:0, y:0, exists:false };
+let truck = {x:0,y:0,exists:false};
 const destroyedDeco = new Set();
 let fireProjectiles = [];
+let spaceEnemies = [];
+let spaceBombs = [];
+
+const debug = { godMode:false, speedMult:1, open:false };
 
 const player = {
-  x:0, y:0, r:14,
-  hp:130, maxHp:130,
-  mp:60,  maxMp:60,
-  stam:100, maxStam:100,
-  level:1, xp:0, xpNext:45,
-  atk:15, speed:172, gold:0, potions:3,
-  aim:0, atkCd:0, dashCd:0, invuln:0, swing:0,
-  potionCd:0, walkT:0,
-  worldPos:{x:0,y:0},
-  dead:false, deadTimer:0,
-  dashT:0, dashX:0, dashY:0,
-  atBonfire:null,
+  x:0, y:0, r:14, hp:130, maxHp:130, mp:60, maxMp:60, stam:100, maxStam:100,
+  level:1, xp:0, xpNext:45, atk:15, speed:172, gold:0, potions:3,
+  aim:0, atkCd:0, dashCd:0, invuln:0, swing:0, potionCd:0, walkT:0,
+  worldPos:{x:0,y:0}, dead:false, deadTimer:0,
+  dashT:0, dashX:0, dashY:0, atBonfire:null,
   hasSpinningSword:false, spinAngle:0, spinRadius:62,
-  bootTier:0,
-  inTruck:false, fireMode:false,
+  bootTier:0, inTruck:false, fireMode:false,
   truckAngle:0, fireShotCd:0, splashTimer:0,
-  prevX:0, prevY:0
+  hasShip:false, shipCd:0
 };
 
 const cam = {x:0, y:0};
 
-/* ------------------------- LOJA ------------------------- */
+/* ---------- SHOP ---------- */
 const SHOP_ITEMS = [
-  {id:'boots1', name:'Botas de Couro',       cost:80,   desc:'+15% velocidade', type:'boots', tier:1},
-  {id:'boots2', name:'Botas de Velocidade',  cost:300,  desc:'+35% velocidade', type:'boots', tier:2},
-  {id:'boots3', name:'Botas Lendárias',      cost:900,  desc:'+65% velocidade', type:'boots', tier:3},
-  {id:'boots4', name:'Botas Divinas',        cost:2200, desc:'+100% velocidade', type:'boots', tier:4},
-  {id:'truck',  name:'MONSTER TRUCK',        cost:4000, desc:'Destrói árvores, anda na água, F = fogo', type:'truck'},
-  {id:'potion', name:'Poção',                cost:40,   desc:'+1 poção de cura', type:'potion'},
+  {id:'boots1', name:'Botas de Couro', cost:80, desc:'+15% velocidade', type:'boots', tier:1},
+  {id:'boots2', name:'Botas de Velocidade', cost:300, desc:'+35% velocidade', type:'boots', tier:2},
+  {id:'boots3', name:'Botas Lendárias', cost:900, desc:'+65% velocidade', type:'boots', tier:3},
+  {id:'boots4', name:'Botas Divinas', cost:2200, desc:'+100% velocidade', type:'boots', tier:4},
+  {id:'truck', name:'MONSTER TRUCK', cost:4000, desc:'Destrói árvores, anda na água, F = fogo', type:'truck'},
+  {id:'ship', name:'NAVE ESPACIAL', cost:15000, desc:'Modo galáxia: atira bombas, farma ouro rápido (G)', type:'ship'},
+  {id:'potion', name:'Poção', cost:40, desc:'+1 poção de cura', type:'potion'},
 ];
-function bootBonus(tier){
-  return [1, 1.15, 1.35, 1.65, 2.0][tier] || 1;
-}
+function bootBonus(t){ return [1,1.15,1.35,1.65,2.0][t] || 1; }
 
-/* ------------------------- INPUT ------------------------- */
+/* ---------- INPUT ---------- */
 const keys = {};
 const mouse = {x:0, y:0, down:false};
 
 addEventListener('keydown', e=>{
-  if(['Space','ShiftLeft','ShiftRight','KeyE','KeyL','KeyT','KeyF','Escape','Digit1','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+  if(['Space','ShiftLeft','ShiftRight','KeyE','KeyL','KeyG','KeyT','KeyF','Escape','F2','Digit1','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
   const firstPress = !keys[e.code];
   if(firstPress) keys[e.code+'_p'] = true;
   keys[e.code] = true;
   if(!firstPress) return;
 
+  if(e.code === 'F2'){ toggleDebug(); return; }
   if(e.code === 'Escape'){
+    if(debug.open){ closeDebug(); return; }
     if(shopOpen){ closeShop(); return; }
     if(bonfireMode){ leaveBonfire(); return; }
   }
-
+  if(e.code === 'KeyG' && gameStarted && !gamePaused && !bonfireMode && !player.dead){
+    if(player.hasShip){
+      if(scene === 'galaxy') exitGalaxy();
+      else if(scene === 'world') enterGalaxy();
+    } else { toast('Compre a Nave Espacial na loja!', '#ff6b6b'); }
+    return;
+  }
   if(e.code === 'KeyE'){
     if(bonfireMode){ leaveBonfire(); return; }
+    if(scene === 'galaxy'){ exitGalaxy(); return; }
     if(gameStarted && !gamePaused && !player.dead && scene === 'world'){
-      // loja
       if(shop && dist(player.x,player.y,shop.x,shop.y) < 90){ openShop(); return; }
-      // truck
       if(truck.exists && !player.inTruck && dist(player.x,player.y,truck.x,truck.y) < 80){
-        player.inTruck = true;
-        player.truckAngle = player.aim;
-        player.fireMode = false;
-        burst(player.x, player.y, '#ffd166', 20, 180);
-        showHint('🚛 No Monster Truck! F = fogo, E para descer.');
-        return;
+        player.inTruck = true; player.truckAngle = player.aim; player.fireMode = false;
+        burst(player.x, player.y, '#ffd166', 20, 180); showHint('🚛 No Monster Truck! F = fogo, E para descer.'); return;
       }
-      if(player.inTruck){
-        tryDismountTruck();
-        return;
-      }
-      // fogueiras
+      if(player.inTruck){ tryDismountTruck(); return; }
       for(const b of bonfires){
         if(dist(player.x,player.y,b.x,b.y) < 70){ enterBonfire(b); return; }
       }
-      // dungeons
       for(const d of dungeonEntrances){
         if(dist(player.x,player.y,d.x,d.y) < 78){ enterDungeon(d.idx); return; }
       }
@@ -393,21 +409,18 @@ addEventListener('keydown', e=>{
       if(dist(player.x,player.y,dungeon.exit.x,dungeon.exit.y) < 80){ exitDungeon(); return; }
     }
   }
-
   if(e.code === 'KeyT' && gameStarted && !gamePaused && !player.dead && scene === 'world'){
-    if(player.inTruck){ tryDismountTruck(); }
+    if(player.inTruck) tryDismountTruck();
     else if(truck.exists && dist(player.x,player.y,truck.x,truck.y) < 80){
       player.inTruck = true; player.truckAngle = player.aim; player.fireMode = false;
       showHint('🚛 Monster Truck montado!');
     }
   }
-
   if(e.code === 'KeyF' && gameStarted && !gamePaused && !bonfireMode && !player.dead && player.inTruck){
     player.fireMode = !player.fireMode;
     showHint(player.fireMode ? '🔥 MODO FOGO ATIVADO' : 'Modo fogo desativado');
     if(player.fireMode) burst(player.x, player.y, '#ff7040', 20, 180);
   }
-
   if(e.code === 'KeyL') toggleLeaderboard();
 });
 addEventListener('keyup', e=>{ keys[e.code]=false; });
@@ -416,16 +429,90 @@ cvs.addEventListener('mousedown', e=>{ if(e.button===0) mouse.down=true; });
 addEventListener('mouseup', e=>{ if(e.button===0) mouse.down=false; });
 cvs.addEventListener('contextmenu', e=>e.preventDefault());
 
-/* ------------------------- LOJA (JS) ------------------------- */
-function openShop(){
-  shopOpen = true;
+/* ---------- DEBUG MENU ---------- */
+function toggleDebug(){ debug.open ? closeDebug() : openDebug(); }
+function openDebug(){
+  debug.open = true;
   gamePaused = true;
-  renderShop();
+  document.getElementById('debug-overlay').classList.add('on');
+  document.getElementById('dbg-gold').value = Math.round(player.gold);
+  document.getElementById('dbg-speed').value = debug.speedMult;
+  document.getElementById('dbg-level').value = player.level;
+  document.getElementById('dbg-god').textContent = debug.godMode ? 'ON' : 'OFF';
+}
+function closeDebug(){
+  debug.open = false;
+  gamePaused = false;
+  document.getElementById('debug-overlay').classList.remove('on');
+}
+function debugSetGold(){
+  const v = parseInt(document.getElementById('dbg-gold').value) || 0;
+  player.gold = Math.max(0, v);
+  updateScore(true);
+  toast('Ouro: ' + player.gold, '#ffd166');
+}
+function debugGoldMax(){ player.gold += 1000000; updateScore(true); toast('+1.000.000 ouro', '#7dffb0'); }
+function debugSetSpeed(){
+  const v = parseFloat(document.getElementById('dbg-speed').value);
+  debug.speedMult = isFinite(v) && v > 0 ? v : 1;
+  toast('Velocidade ×' + debug.speedMult, '#9ad8f8');
+}
+function debugResetSpeed(){ debug.speedMult = 1; document.getElementById('dbg-speed').value = 1; toast('Velocidade resetada', '#9ad8f8'); }
+function debugSetLevel(){
+  const v = parseInt(document.getElementById('dbg-level').value) || 1;
+  player.level = Math.max(1, v);
+  player.maxHp = 130 + (player.level-1)*20;
+  player.hp = player.maxHp;
+  player.atk = 15 + (player.level-1)*3;
+  player.xpNext = Math.round(45 * Math.pow(1.42, player.level-1));
+  updateScore(true);
+  toast('Nível ' + player.level, '#ffd166');
+}
+function debugGodmode(){
+  debug.godMode = !debug.godMode;
+  document.getElementById('dbg-god').textContent = debug.godMode ? 'ON' : 'OFF';
+  toast('Godmode: ' + (debug.godMode ? 'ON' : 'OFF'), debug.godMode ? '#7dffb0' : '#ff6b6b');
+}
+function debugSpawnTruck(){
+  player.hasTruck = true; truck.exists = true;
+  let placed = false;
+  for(let r=60; r<300 && !placed; r+=20){
+    for(let a=0; a<12; a++){
+      const ang = a/12*TAU;
+      const tx = player.x + Math.cos(ang)*r, ty = player.y + Math.sin(ang)*r;
+      if(walkableWorld(tx,ty)){ truck.x = tx; truck.y = ty; placed = true; break; }
+    }
+  }
+  if(!placed){ truck.x = player.x + 60; truck.y = player.y; }
+  burst(truck.x, truck.y, '#ffd166', 40, 200);
+  toast('🚛 Truck spawnado!', '#ffd166');
+}
+function debugSpawnShip(){
+  player.hasShip = true;
+  if(currentUser) localStorage.setItem('aetheria_ship_'+currentUser, '1');
+  toast('🚀 Nave desbloqueada! Pressione G', '#ffd166');
+}
+function debugGiveSword(){
+  player.hasSpinningSword = true; player.spinAngle = 0;
+  toast('🗡 Espada Giratória ativa!', '#ffd166');
+}
+function debugHealFull(){
+  player.hp = player.maxHp; player.stam = player.maxStam; player.mp = player.maxMp;
+  toast('❤ Curado', '#7dffb0');
+}
+function debugKillAll(){
+  for(const e of enemies) if(!e.dead) damageEnemy(e, 999999, 0);
+  for(const e of spaceEnemies) e.dead = true;
+  toast('💀 Inimigos eliminados', '#ff6b6b');
+}
+
+/* ---------- SHOP JS ---------- */
+function openShop(){
+  shopOpen = true; gamePaused = true; renderShop();
   document.getElementById('shop-overlay').classList.add('on');
 }
 function closeShop(){
-  shopOpen = false;
-  gamePaused = false;
+  shopOpen = false; gamePaused = false;
   document.getElementById('shop-overlay').classList.remove('on');
 }
 function renderShop(){
@@ -433,24 +520,17 @@ function renderShop(){
   const container = document.getElementById('shop-items');
   container.innerHTML = '';
   for(const item of SHOP_ITEMS){
-    // Esconde botas já compradas ou fora de ordem
     if(item.type === 'boots'){
       if(player.bootTier >= item.tier) continue;
       if(item.tier > player.bootTier + 1) continue;
     }
     if(item.type === 'truck' && player.hasTruck) continue;
-
+    if(item.type === 'ship' && player.hasShip) continue;
     const canAfford = player.gold >= item.cost;
     const div = document.createElement('div');
     div.className = 'shop-item';
-    div.innerHTML = `
-      <div>
-        <div class="name">${item.name}</div>
-        <div class="desc">${item.desc}</div>
-      </div>
-      <button class="${canAfford?'green':'gray'}" ${canAfford?'':'disabled'} onclick="buyItem('${item.id}')">
-        ${item.cost} ⛁
-      </button>`;
+    div.innerHTML = `<div><div class="name">${item.name}</div><div class="desc">${item.desc}</div></div>
+      <button class="${canAfford?'green':'gray'}" ${canAfford?'':'disabled'} onclick="buyItem('${item.id}')">${item.cost} ⛁</button>`;
     container.appendChild(div);
   }
   if(container.children.length === 0){
@@ -465,21 +545,23 @@ function buyItem(id){
     player.bootTier = item.tier;
     toast('Comprado: ' + item.name, '#7dffb0');
   } else if(item.type === 'truck'){
-    player.hasTruck = true;
-    truck.exists = true;
-    // posiciona o truck ao lado da loja
+    player.hasTruck = true; truck.exists = true;
     let placed = false;
     for(let r=60; r<300 && !placed; r+=20){
       for(let a=0; a<12; a++){
         const ang = a/12*TAU;
-        const tx = shop.x + Math.cos(ang)*r;
-        const ty = shop.y + Math.sin(ang)*r;
-        if(walkableWorldBasic(tx, ty)){ truck.x = tx; truck.y = ty; placed = true; break; }
+        const tx = shop.x + Math.cos(ang)*r, ty = shop.y + Math.sin(ang)*r;
+        if(walkableWorld(tx,ty)){ truck.x = tx; truck.y = ty; placed = true; break; }
       }
     }
     if(!placed){ truck.x = shop.x; truck.y = shop.y; }
     burst(truck.x, truck.y, '#ffd166', 60, 300);
     toast('🚛 MONSTER TRUCK! Aperte E perto dele', '#ffd166');
+    if(currentUser) localStorage.setItem('aetheria_truck_'+currentUser, '1');
+  } else if(item.type === 'ship'){
+    player.hasShip = true;
+    toast('🚀 NAVE ESPACIAL! Pressione G para voar', '#ffd166');
+    if(currentUser) localStorage.setItem('aetheria_ship_'+currentUser, '1');
   } else if(item.type === 'potion'){
     player.potions++;
     toast('+1 Poção', '#7dffb0');
@@ -488,27 +570,20 @@ function buyItem(id){
   renderShop();
 }
 
-/* ------------------------- CONTA / LEADERBOARD ------------------------- */
+/* ---------- ACCOUNT / LEADERBOARD ---------- */
 const ACCOUNTS_KEY = 'aetheria_accounts_v1';
-const SESSION_KEY  = 'aetheria_session_v1';
+const SESSION_KEY = 'aetheria_session_v1';
 let currentUser = null;
 let sessionBosses = 0;
 let remoteEntries = [];
 let lastScoreSave = 0;
 
-function simpleHash(s){
-  let h = 5381;
-  for(let i=0;i<s.length;i++) h = ((h<<5)+h) + s.charCodeAt(i);
-  return (h>>>0).toString(36);
-}
-function getAccounts(){
-  try { return JSON.parse(localStorage.getItem(ACCOUNTS_KEY)) || {}; } catch(e){ return {}; }
-}
+function simpleHash(s){ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h)+s.charCodeAt(i); return (h>>>0).toString(36); }
+function getAccounts(){ try{ return JSON.parse(localStorage.getItem(ACCOUNTS_KEY))||{}; } catch(e){ return {}; } }
 function saveAccounts(a){ try{ localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(a)); }catch(e){} }
 function toast(msg, color){
   const t = document.getElementById('toast');
-  t.textContent = msg; t.style.color = color || '#ffd166';
-  t.style.opacity = 1;
+  t.textContent = msg; t.style.color = color || '#ffd166'; t.style.opacity = 1;
   clearTimeout(t._tm); t._tm = setTimeout(()=> t.style.opacity = 0, 1800);
 }
 function doRegister(){
@@ -535,24 +610,19 @@ function loginAs(u){
   sessionBosses = getAccounts()[u].bosses || 0;
   showLeaderboardPanel();
 }
-function playGuest(){
-  currentUser = null;
-  localStorage.removeItem(SESSION_KEY);
-  hideOverlay();
-  startGame();
-}
+function playGuest(){ currentUser = null; localStorage.removeItem(SESSION_KEY); hideOverlay(); startGame(); }
 function logout(){ currentUser = null; localStorage.removeItem(SESSION_KEY); showAuthPanel(); }
 function showAuthPanel(){
-  document.getElementById('auth-section').style.display='block';
-  document.getElementById('lb-section').style.display='none';
-  document.getElementById('ov-sub').textContent='Entre ou crie uma conta para competir no ranking';
+  document.getElementById('auth-section').style.display = 'block';
+  document.getElementById('lb-section').style.display = 'none';
+  document.getElementById('ov-sub').textContent = 'Entre ou crie uma conta para competir no ranking';
   document.getElementById('overlay').classList.add('on');
   gamePaused = true;
 }
 function showLeaderboardPanel(){
-  document.getElementById('auth-section').style.display='none';
-  document.getElementById('lb-section').style.display='flex';
-  document.getElementById('ov-sub').textContent='';
+  document.getElementById('auth-section').style.display = 'none';
+  document.getElementById('lb-section').style.display = 'flex';
+  document.getElementById('ov-sub').textContent = '';
   document.getElementById('overlay').classList.add('on');
   document.getElementById('lb-me').textContent = currentUser || 'Visitante';
   gamePaused = true;
@@ -571,23 +641,15 @@ async function loadRemoteLeaderboard(){
 function mergeEntries(){
   const local = getAccounts();
   const merged = {};
-  for(const r of remoteEntries){
-    if(r && r.name) merged[r.name] = {name:r.name, level:r.level|0||1, bosses:r.bosses|0||0, xp:r.xp|0||0, gold:r.gold|0||0};
-  }
-  for(const [name, d] of Object.entries(local)){
-    merged[name] = {name, level:d.level|0||1, bosses:d.bosses|0||0, xp:d.xp|0||0, gold:d.gold|0||0};
-  }
-  return Object.values(merged).sort((a,b)=>
-    (b.level-a.level)||(b.bosses-a.bosses)||(b.xp-a.xp)||(b.gold-a.gold));
+  for(const r of remoteEntries) if(r && r.name) merged[r.name] = {name:r.name, level:r.level|0||1, bosses:r.bosses|0||0, xp:r.xp|0||0, gold:r.gold|0||0};
+  for(const [name, d] of Object.entries(local)) merged[name] = {name, level:d.level|0||1, bosses:d.bosses|0||0, xp:d.xp|0||0, gold:d.gold|0||0};
+  return Object.values(merged).sort((a,b)=>(b.level-a.level)||(b.bosses-a.bosses)||(b.xp-a.xp)||(b.gold-a.gold));
 }
 function renderLeaderboard(){
   const rows = mergeEntries().slice(0, 30);
   const body = document.getElementById('lb-body');
   body.innerHTML = '';
-  if(rows.length === 0){
-    body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6a8aa0;padding:24px;">Nenhum registro ainda. Seja o primeiro!</td></tr>';
-    return;
-  }
+  if(rows.length === 0){ body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6a8aa0;padding:24px;">Nenhum registro ainda.</td></tr>'; return; }
   rows.forEach((r, i) => {
     const tr = document.createElement('tr');
     if(r.name === currentUser) tr.className = 'me';
@@ -596,12 +658,8 @@ function renderLeaderboard(){
     body.appendChild(tr);
   });
 }
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-async function refreshLeaderboard(){
-  await loadRemoteLeaderboard(); renderLeaderboard(); toast('Ranking atualizado', '#9ad8f8');
-}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function refreshLeaderboard(){ await loadRemoteLeaderboard(); renderLeaderboard(); toast('Ranking atualizado', '#9ad8f8'); }
 function updateScore(force){
   if(!currentUser) return;
   const now = performance.now();
@@ -625,158 +683,154 @@ function downloadLeaderboard(){
   toast('leaderboard.json baixado!', '#7dffb0');
 }
 
-/* ------------------------- LOOP DE JOGO ------------------------- */
+/* ---------- LOOP CONTROL ---------- */
 let gameStarted = false;
 let gamePaused = true;
 function startGame(){
-  hideOverlay();
-  gamePaused = false;
+  hideOverlay(); gamePaused = false;
   if(!gameStarted){
     gameStarted = true;
     initGame();
     if(currentUser){
       const acc = getAccounts();
-      if(acc[currentUser] && acc[currentUser].bosses >= 1){
-        player.hasSpinningSword = true;
-        setTimeout(()=> showHint('🗡 Espada Giratória restaurada do seu legado.'), 500);
+      if(acc[currentUser] && acc[currentUser].bosses >= 1) player.hasSpinningSword = true;
+      if(localStorage.getItem('aetheria_truck_'+currentUser) === '1'){
+        player.hasTruck = true; truck.exists = true;
+        truck.x = shop.x + 80; truck.y = shop.y + 30;
       }
+      if(localStorage.getItem('aetheria_ship_'+currentUser) === '1') player.hasShip = true;
     }
     requestAnimationFrame(loop);
   }
 }
 function toggleLeaderboard(){
-  if(!gameStarted || bonfireMode || shopOpen) return;
-  if(gamePaused && document.getElementById('overlay').classList.contains('on')){
-    hideOverlay(); gamePaused = false;
-  } else if(!gamePaused){
-    if(currentUser){ showLeaderboardPanel(); } else { renderLeaderboard(); showLeaderboardPanel(); }
-  }
+  if(!gameStarted || bonfireMode || shopOpen || debug.open) return;
+  if(gamePaused && document.getElementById('overlay').classList.contains('on')){ hideOverlay(); gamePaused = false; }
+  else if(!gamePaused){ if(currentUser) showLeaderboardPanel(); else { renderLeaderboard(); showLeaderboardPanel(); } }
 }
 
-/* ============================================================
-   FOGUEIRA — PAUSA TOTAL
-   ============================================================ */
+/* ---------- BONFIRE ---------- */
 function enterBonfire(b){
-  player.atBonfire = b;
-  bonfireMode = true;
-  bonfireAmbient = 0;
-  fireProjectiles.length = 0;
+  player.atBonfire = b; bonfireMode = true; bonfireAmbient = 0; fireProjectiles.length = 0;
   player.x = b.x; player.y = b.y + 6;
   player.hp = player.maxHp; player.stam = player.maxStam; player.mp = player.maxMp;
   player.potions = Math.max(player.potions, 3);
   player.invuln = 0; player.atkCd = 0; player.dashCd = 0; player.dashT = 0; player.swing = 0;
-  for(const e of worldEnemies){
-    if(e.dead){ e.dead=false; e.hp=e.maxHp; e.x=e.homeX; e.y=e.homeY; e.state='idle'; e.atkCd=1; }
-  }
+  for(const e of enemies){ if(e.dead){ e.dead=false; e.hp=e.maxHp; e.x=e.homeX; e.y=e.homeY; e.state='idle'; e.atkCd=1; } }
   burst(b.x, b.y, '#ffb703', 40, 200);
   showHint('🔥 Fogueira acesa — E ou Esc para levantar.');
   updateScore(true);
 }
-function leaveBonfire(){
-  bonfireMode = false;
-  player.atBonfire = null;
-  player.invuln = 1.2;
-  showHint('Você se levanta da fogueira.');
-}
-function drawBonfireOverlay(){
-  const b = player.atBonfire;
-  if(!b) return;
-  const sx = b.x - cam.x, sy = b.y - cam.y;
-  const fade = Math.min(1, bonfireAmbient / 0.5);
-  const dg = ctx.createRadialGradient(sx, sy, 80, sx, sy, Math.max(VW, VH)*0.95);
-  dg.addColorStop(0, `rgba(10,8,4,${0.25*fade})`);
-  dg.addColorStop(0.35, `rgba(6,4,2,${0.62*fade})`);
-  dg.addColorStop(1, `rgba(0,0,0,${0.9*fade})`);
-  ctx.fillStyle = dg; ctx.fillRect(0,0,VW,VH);
-  const pulse = 1 + Math.sin(gameTime*2.2)*0.12;
-  const ag = ctx.createRadialGradient(sx, sy, 4, sx, sy, 180*pulse);
-  ag.addColorStop(0, `rgba(255,244,200,${0.95*fade})`);
-  ag.addColorStop(0.18, `rgba(255,210,90,${0.7*fade})`);
-  ag.addColorStop(0.5, `rgba(255,130,30,${0.28*fade})`);
-  ag.addColorStop(1, 'rgba(255,80,0,0)');
-  ctx.fillStyle = ag;
-  ctx.beginPath(); ctx.arc(sx, sy, 180*pulse, 0, TAU); ctx.fill();
-  for(let i=0;i<3;i++){
-    const t = ((gameTime*0.55 + i*0.33) % 1);
-    const r = 26 + t*150;
-    ctx.strokeStyle = `rgba(255,200,100,${(1-t)*0.55*fade})`;
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.stroke();
-  }
-  for(let i=0;i<10;i++){
-    const t = ((gameTime*0.6 + i*0.13) % 1);
-    const ex = sx + Math.sin(gameTime*2 + i*1.7)*30;
-    const ey = sy - t*120;
-    ctx.globalAlpha = (1-t)*0.9*fade;
-    ctx.fillStyle = i%2 ? '#ffd166' : '#ff9f43';
-    ctx.beginPath(); ctx.arc(ex, ey, 2 + (1-t)*3, 0, TAU); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-  ctx.textAlign = 'center';
-  ctx.globalAlpha = fade;
-  ctx.shadowColor = '#ffb703'; ctx.shadowBlur = 24;
-  ctx.fillStyle = '#ffd166'; ctx.font = 'bold 34px Trebuchet MS';
-  ctx.fillText('🔥 FOGUEIRA', VW/2, 96);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#ffe9b0'; ctx.font = 'bold 17px Trebuchet MS';
-  ctx.fillText('Pressione  E  ou  Esc  para levantar', VW/2, 130);
-  ctx.fillStyle = '#9ad8f8'; ctx.font = '14px Trebuchet MS';
-  ctx.fillText('Vida e stamina restauradas • inimigos renasceram', VW/2, 158);
-  ctx.globalAlpha = 1;
-}
+function leaveBonfire(){ bonfireMode = false; player.atBonfire = null; player.invuln = 1.2; showHint('Você se levanta da fogueira.'); }
 
-/* ------------------------- TRUCK MOUNT/DISMOUNT ------------------------- */
-function tryDismountTruck(){
-  if(!player.inTruck) return;
-  player.inTruck = false;
-  player.fireMode = false;
-  truck.x = player.x; truck.y = player.y;
-  if(!walkableWorldBasic(player.x, player.y)){
-    const land = findNearestLand(player.x, player.y);
-    if(land){ player.x = land.x; player.y = land.y; truck.x = land.x; truck.y = land.y; }
-  }
-  showHint('Você desceu do Monster Truck.');
+/* ---------- GALAXY MODE ---------- */
+function enterGalaxy(){
+  if(!player.hasShip) return;
+  if(player.inTruck){ player.inTruck = false; player.fireMode = false; }
+  player.worldPos = {x:player.x, y:player.y};
+  scene = 'galaxy';
+  spaceEnemies.length = 0; spaceBombs.length = 0; particles.length = 0; floaters.length = 0;
+  player.x = 0; player.y = 0;
+  cam.x = -VW/2; cam.y = -VH/2;
+  player.shipCd = 0; player.invuln = 2;
+  if(player.hp < player.maxHp*0.5) player.hp = Math.round(player.maxHp*0.6);
+  burst(VW/2, VH/2, '#6ab8ff', 60, 400);
+  showHint('🚀 MODO GALÁXIA — mate inimigos para farmar ouro! E ou G para sair.');
 }
-function findNearestLand(x, y){
-  for(let r=1; r<40; r++){
-    for(let a=0; a<20; a++){
-      const ang = (a/20)*TAU;
-      const tx = x + Math.cos(ang)*r*TS;
-      const ty = y + Math.sin(ang)*r*TS;
-      if(walkableWorldBasic(tx, ty)) return {x:tx, y:ty};
+function exitGalaxy(){
+  scene = 'world';
+  player.x = player.worldPos.x; player.y = player.worldPos.y;
+  spaceEnemies.length = 0; spaceBombs.length = 0;
+  player.invuln = 2;
+  showHint('Você voltou para a superfície.');
+}
+function spawnSpaceEnemy(){
+  const roll = Math.random();
+  const type = roll < 0.65 ? 'drone' : (roll < 0.92 ? 'fighter' : 'cruiser');
+  const def = {
+    drone:{hp:40, dmg:10, spd:110, xp:15, gold:25, r:14, col:'#6ab8ff'},
+    fighter:{hp:80, dmg:15, spd:170, xp:25, gold:60, r:18, col:'#ff8844'},
+    cruiser:{hp:220, dmg:25, spd:75, xp:65, gold:150, r:30, col:'#ff4466'},
+  }[type];
+  const ang = Math.random() * TAU;
+  const d = Math.max(VW, VH) * 0.75;
+  const x = player.x + Math.cos(ang) * d;
+  const y = player.y + Math.sin(ang) * d;
+  spaceEnemies.push({
+    type, x, y, r:def.r, hp:def.hp * (1 + player.level*0.1), maxHp:def.hp * (1 + player.level*0.1),
+    dmg:def.dmg * (1 + player.level*0.05), spd:def.spd, xp:def.xp, gold:def.gold, col:def.col,
+    dead:false, hitFlash:0, wobble:Math.random()*TAU
+  });
+}
+function fireBomb(ang){
+  spaceBombs.push({
+    x: player.x + Math.cos(ang)*26, y: player.y + Math.sin(ang)*26,
+    vx: Math.cos(ang)*620, vy: Math.sin(ang)*620,
+    life: 1.2, max: 1.2, r: 7
+  });
+  burst(player.x + Math.cos(ang)*26, player.y + Math.sin(ang)*26, '#ffd166', 3, 90);
+}
+function explodeBomb(x, y){
+  burst(x, y, '#ff7040', 30, 320);
+  for(let i=0;i<20;i++){
+    const a = Math.random()*TAU, s = rnd(60, 260);
+    particles.push({x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, life:rnd(0.3,0.7), max:0.7, color:'#ffb703', r:rnd(3,7)});
+  }
+  shake = Math.max(shake, 6);
+  const DMG = 90 + player.level * 8;
+  for(const e of spaceEnemies){
+    if(e.dead) continue;
+    if(dist(x, y, e.x, e.y) < 90 + e.r){
+      damageSpaceEnemy(e, DMG);
     }
   }
-  return null;
+}
+function damageSpaceEnemy(e, amount){
+  if(e.dead) return;
+  e.hp -= amount;
+  e.hitFlash = 0.15;
+  addFloater(e.x, e.y - e.r - 8, Math.round(amount), '#ffe066', 14);
+  if(e.hp <= 0){
+    e.dead = true;
+    burst(e.x, e.y, e.col, 20, 250);
+    player.gold += e.gold;
+    gainXp(e.xp);
+    if(Math.random() < 0.18){ player.potions++; addFloater(e.x, e.y-40, '+1 Poção', '#7dffb0', 14); }
+    updateScore(false);
+  }
 }
 
-/* ------------------------- CRIAÇÃO DE INIMIGOS ------------------------- */
+/* ---------- ENEMY CREATION ---------- */
 function makeEnemy(typeKey, x, y, mult=1){
   const d = ENEMIES[typeKey];
   return {
     type:typeKey, name:d.name, x, y, homeX:x, homeY:y,
     r:d.r, col:d.col, col2:d.col2, shape:d.shape,
-    hp:d.hp*mult, maxHp:d.hp*mult, dmg:d.dmg*mult,
-    spd:d.spd, xp:Math.round(d.xp*mult), gold:Math.round(d.gold*mult),
+    hp:d.hp*mult, maxHp:d.hp*mult, dmg:d.dmg*mult, spd:d.spd,
+    xp:Math.round(d.xp*mult), gold:Math.round(d.gold*mult),
     state:'idle', atkCd:0, windup:0, hitFlash:0,
     wobble:Math.random()*TAU, wanderT:0, wx:x, wy:y,
     dead:false, respawn:0, vx:0, vy:0, spinHitT:0
   };
 }
-function spawnWorldEnemies(){
-  enemies = [];
-  for(let i=0;i<520;i++){
-    const tx = rndi(WORLD_W), ty = rndi(WORLD_H);
-    const t = worldTiles[ty*WORLD_W+tx];
+function spawnEnemyNearPlayer(){
+  for(let a=0; a<20; a++){
+    const ang = Math.random() * TAU;
+    const d = 400 + Math.random() * 4000;
+    const x = player.x + Math.cos(ang) * d;
+    const y = player.y + Math.sin(ang) * d;
+    const t = tileAtWorld(x, y);
     if(t === T.WATER) continue;
-    const list = BIOME_ENEMIES[t]; if(!list) continue;
+    const list = BIOME_ENEMIES[t];
+    if(!list) continue;
     const key = list[rndi(list.length)];
-    const x = tx*TS + TS/2, y = ty*TS + TS/2;
-    const d = dist(x, y, WORLD_W*TS/2, WORLD_H*TS/2);
     enemies.push(makeEnemy(key, x, y, 0.75 + d/3200));
+    return true;
   }
+  return false;
 }
 
-/* ------------------------- DUNGEON ------------------------- */
+/* ---------- DUNGEON GENERATION ---------- */
 function genDungeon(def, idx){
   const W = 72, H = 72;
   const map = new Uint8Array(W*H).fill(1);
@@ -785,9 +839,7 @@ function genDungeon(def, idx){
     const w = 7 + rndi(6), h = 7 + rndi(6);
     const x = 2 + rndi(W-w-4), y = 2 + rndi(H-h-4);
     let ok = true;
-    for(const o of rooms){
-      if(x < o.x+o.w+3 && x+w+3 > o.x && y < o.y+o.h+3 && y+h+3 > o.y){ ok=false; break; }
-    }
+    for(const o of rooms) if(x < o.x+o.w+3 && x+w+3 > o.x && y < o.y+o.h+3 && y+h+3 > o.y){ ok=false; break; }
     if(!ok) continue;
     rooms.push({x,y,w,h,cx:x+(w>>1), cy:y+(h>>1)});
   }
@@ -827,21 +879,16 @@ function genDungeon(def, idx){
   const bd = BOSS_DEFS[def.theme];
   const mult = 1 + idx*0.22;
   const boss = {
-    isBoss:true, name:bd.name,
-    x: bossRoom.cx*TS, y: bossRoom.cy*TS, r:36,
-    hp: bd.hp*mult, maxHp: bd.hp*mult, dmg: bd.dmg*mult,
-    spd: bd.spd, col: bd.col, col2: bd.col2, shape: bd.shape,
-    state:'idle', atkCd:2.5, windup:0, hitFlash:0, dead:false,
-    wobble:0, phase:1, vx:0, vy:0,
-    special:null, specialT:0, alive:true, specialDone:false
+    isBoss:true, name:bd.name, x:bossRoom.cx*TS, y:bossRoom.cy*TS, r:36,
+    hp:bd.hp*mult, maxHp:bd.hp*mult, dmg:bd.dmg*mult, spd:bd.spd,
+    col:bd.col, col2:bd.col2, shape:bd.shape, state:'idle', atkCd:2.5, windup:0,
+    hitFlash:0, dead:false, wobble:0, phase:1, vx:0, vy:0, special:null, specialT:0, specialDone:false
   };
   ents.push(boss);
   return {
-    def, idx, W, H, map, rooms, bossRoom, bossIndex:rooms.length-1,
-    theme: THEMES[def.theme], entities: ents, boss,
-    bossActive:false, cleared:false,
-    exit:{x: rooms[0].cx*TS, y: rooms[0].cy*TS},
-    start:{x: rooms[0].cx*TS, y: rooms[0].cy*TS}, looted:false
+    def, idx, W, H, map, rooms, bossRoom, theme:THEMES[def.theme],
+    entities:ents, boss, bossActive:false, cleared:false,
+    exit:{x:rooms[0].cx*TS, y:rooms[0].cy*TS}, start:{x:rooms[0].cx*TS, y:rooms[0].cy*TS}
   };
 }
 function walkableDungeon(px,py){
@@ -849,12 +896,8 @@ function walkableDungeon(px,py){
   if(tx<0||ty<0||tx>=dungeon.W||ty>=dungeon.H) return false;
   return dungeon.map[ty*dungeon.W+tx] === 0;
 }
-
 function enterDungeon(i){
-  if(player.inTruck){
-    player.inTruck = false; player.fireMode = false;
-    truck.x = player.x; truck.y = player.y;
-  }
+  if(player.inTruck){ player.inTruck = false; player.fireMode = false; truck.x = player.x; truck.y = player.y; }
   const def = DUNGEON_DEFS[i];
   player.worldPos = {x:player.x, y:player.y};
   dungeon = genDungeon(def, i);
@@ -863,18 +906,17 @@ function enterDungeon(i){
   player.x = dungeon.start.x; player.y = dungeon.start.y;
   player.hp = player.maxHp; player.stam = player.maxStam;
   scene = 'dungeon';
-  showHint('Dungeon: ' + def.name + ' — encontre o chefe!');
+  showHint('Dungeon: ' + def.name);
 }
 function exitDungeon(){
-  scene = 'world';
-  enemies = worldEnemies;
+  scene = 'world'; enemies = worldEnemies;
   player.x = player.worldPos.x; player.y = player.worldPos.y;
   dungeon = null;
   hazards = []; floaters = []; particles = []; fireProjectiles = [];
   showHint('Você voltou ao mundo aberto.');
 }
 
-/* ------------------------- FEEDBACK ------------------------- */
+/* ---------- FEEDBACK ---------- */
 const hintEl = document.getElementById('hint');
 let hintTimer = 0;
 function showHint(txt){ hintEl.innerHTML = txt; hintEl.style.opacity = 1; hintTimer = 5; }
@@ -886,11 +928,10 @@ function burst(x,y,color,n=10,spd=170){
   }
 }
 
-/* ------------------------- COMBATE ------------------------- */
+/* ---------- COMBAT ---------- */
 function damageEnemy(e, amount, ang){
   if(e.dead) return;
-  e.hp -= amount;
-  e.hitFlash = 0.16;
+  e.hp -= amount; e.hitFlash = 0.16;
   e.vx += Math.cos(ang) * (e.isBoss ? 30 : 180);
   e.vy += Math.sin(ang) * (e.isBoss ? 30 : 180);
   addFloater(e.x, e.y-e.r-12, Math.round(amount), '#ffe066', 17);
@@ -913,7 +954,7 @@ function killEnemy(e){
       player.hasSpinningSword = true; player.spinAngle = 0;
       setTimeout(()=>{
         addFloater(player.x, player.y-90, '🗡 ESPADA GIRATÓRIA!', '#ffd166', 26);
-        burst(player.x, player.y, '#ffd166', 60, 320); shake = 20;
+        burst(player.x, player.y, '#ffd166', 60, 320);
         showHint('🗡 Você obteve a ESPADA GIRATÓRIA!');
         toast('🗡 Espada Giratória obtida!', '#ffd166');
       }, 400);
@@ -938,11 +979,11 @@ function gainXp(n){
     player.atk += 3;
     addFloater(player.x, player.y-70, 'NÍVEL ' + player.level + '!', '#ffd166', 26);
     burst(player.x, player.y, '#ffd166', 40, 260);
-    showHint('Subiu para o nível ' + player.level + '!');
     updateScore(true);
   }
 }
 function hurtPlayer(dmg, fromX, fromY){
+  if(debug.godMode) return;
   if(player.invuln > 0 || player.dead || bonfireMode) return;
   player.hp -= dmg;
   player.invuln = 0.55;
@@ -954,7 +995,8 @@ function hurtPlayer(dmg, fromX, fromY){
 function killPlayer(){
   player.hp = 0; player.dead = true; player.deadTimer = 2.2;
   if(player.inTruck){ player.inTruck = false; player.fireMode = false; truck.x = player.x; truck.y = player.y; }
-  bloodstain = { x:player.x, y:player.y, scene, amount: Math.round(player.gold*0.7) };
+  if(scene === 'galaxy') exitGalaxy();
+  bloodstain = { x:player.x, y:player.y, scene:'world', amount: Math.round(player.gold*0.7) };
   player.gold = Math.round(player.gold*0.3);
   shake = 20;
   burst(player.x, player.y, '#ff3333', 50, 260);
@@ -968,7 +1010,7 @@ function respawnPlayer(){
   player.x = spawnX; player.y = spawnY;
 }
 
-/* ------------------------- UPDATE: JOGADOR ------------------------- */
+/* ---------- PLAYER UPDATE ---------- */
 function updatePlayer(dt){
   if(player.dead){
     player.deadTimer -= dt;
@@ -980,13 +1022,14 @@ function updatePlayer(dt){
   player.invuln = Math.max(0, player.invuln - dt);
   player.potionCd = Math.max(0, player.potionCd - dt);
   player.fireShotCd = Math.max(0, player.fireShotCd - dt);
+  player.shipCd = Math.max(0, player.shipCd - dt);
   if(player.swing > 0) player.swing += dt*5.2, player.swing > 1.5 && (player.swing = 0);
 
   let mx = 0, my = 0;
-  if(keys['KeyA']||keys['ArrowLeft'])  mx -= 1;
+  if(keys['KeyA']||keys['ArrowLeft']) mx -= 1;
   if(keys['KeyD']||keys['ArrowRight']) mx += 1;
-  if(keys['KeyW']||keys['ArrowUp'])    my -= 1;
-  if(keys['KeyS']||keys['ArrowDown'])  my += 1;
+  if(keys['KeyW']||keys['ArrowUp']) my -= 1;
+  if(keys['KeyS']||keys['ArrowDown']) my += 1;
   const len = Math.hypot(mx,my);
   if(len > 0){ mx/=len; my/=len; player.walkT += dt*10; }
 
@@ -994,20 +1037,41 @@ function updatePlayer(dt){
   player.aim = Math.atan2(wy - player.y, wx - player.x);
 
   const bb = bootBonus(player.bootTier);
-  const baseSpeed = player.inTruck ? Math.min(500, 340*bb) : (player.speed * bb);
+  let baseSpeed;
+  if(scene === 'galaxy') baseSpeed = 380;
+  else if(player.inTruck) baseSpeed = Math.min(500, 340*bb);
+  else baseSpeed = player.speed * bb;
+  const finalSpeed = baseSpeed * debug.speedMult;
+
+  if(scene === 'galaxy'){
+    // movimento livre no espaço
+    if(len > 0) movePlayer(mx*finalSpeed*dt, my*finalSpeed*dt);
+    // auto-atira na nave mais próxima
+    if(player.shipCd <= 0 && spaceEnemies.length > 0){
+      let nearest = null, nd = Infinity;
+      for(const e of spaceEnemies){
+        if(e.dead) continue;
+        const d = dist(player.x, player.y, e.x, e.y);
+        if(d < nd){ nd = d; nearest = e; }
+      }
+      if(nearest){
+        const ang = Math.atan2(nearest.y - player.y, nearest.x - player.x);
+        fireBomb(ang);
+        player.shipCd = 0.32;
+      }
+    }
+    return;
+  }
 
   if(player.inTruck){
-    // suaviza rotação da truck
     const da = angDiff(player.aim, player.truckAngle);
     player.truckAngle += da * Math.min(1, dt*12);
   }
 
   if((keys['ShiftLeft']||keys['ShiftRight']) && player.dashCd <= 0 && player.stam >= 26 && len > 0 && !player.inTruck){
-    player.dashCd = 0.68;
-    player.stam -= 26;
+    player.dashCd = 0.68; player.stam -= 26;
     player.invuln = Math.max(player.invuln, 0.28);
-    player.dashX = mx; player.dashY = my;
-    player.dashT = 0.16;
+    player.dashX = mx; player.dashY = my; player.dashT = 0.16;
     burst(player.x, player.y, '#9ad8f8', 8, 90);
   }
   const prevX = player.x, prevY = player.y;
@@ -1015,38 +1079,22 @@ function updatePlayer(dt){
     player.dashT -= dt;
     movePlayer(player.dashX * 620 * dt, player.dashY * 620 * dt);
   } else {
-    const spd = baseSpeed * (len>0?1:0);
-    if(len>0) movePlayer(mx*spd*dt, my*spd*dt);
+    if(len > 0) movePlayer(mx*finalSpeed*dt, my*finalSpeed*dt);
     player.stam = Math.min(player.maxStam, player.stam + 32*dt);
   }
   const moved = player.x !== prevX || player.y !== prevY;
 
-  // ataque normal (fora do truck)
-  if(!player.inTruck && (mouse.down || keys['Space']) && player.atkCd <= 0){
-    doAttack();
-  }
+  if(!player.inTruck && (mouse.down || keys['Space']) && player.atkCd <= 0) doAttack();
+  if(player.inTruck && player.fireMode && player.fireShotCd <= 0){ player.fireShotCd = 0.12; shootFire(); }
 
-  // ===== MODO FOGO (truck) =====
-  if(player.inTruck && player.fireMode && player.fireShotCd <= 0){
-    player.fireShotCd = 0.12;
-    shootFire();
-  }
-
-  // ===== EFEITOS DO TRUCK NO MUNDO =====
   if(player.inTruck && scene === 'world'){
-    // splash na água
     if(tileAtWorld(player.x, player.y) === T.WATER){
       player.splashTimer = Math.max(0, player.splashTimer - dt);
-      if(player.splashTimer <= 0){
-        player.splashTimer = 0.07;
-        for(let i=0;i<5;i++) spawnSplash(player.x, player.y);
-      }
+      if(player.splashTimer <= 0){ player.splashTimer = 0.07; for(let i=0;i<5;i++) spawnSplash(player.x, player.y); }
     }
-    // destrói árvores ao redor quando se move
     if(moved) destroyTreesAround(player.x, player.y, 70);
   }
 
-  // poção
   if(keys['Digit1_p'] && player.potions > 0 && player.potionCd <= 0 && player.hp < player.maxHp){
     keys['Digit1_p'] = false;
     player.potions--;
@@ -1057,7 +1105,6 @@ function updatePlayer(dt){
     burst(player.x, player.y, '#7dffb0', 16, 150);
   }
 
-  // espada giratória
   if(player.hasSpinningSword){
     player.spinAngle += dt * 5.4;
     const sx = player.x + Math.cos(player.spinAngle)*player.spinRadius;
@@ -1080,20 +1127,39 @@ function movePlayer(dx, dy){
   const nx = player.x + dx, ny = player.y + dy;
   let ok;
   if(scene === 'world'){
-    if(player.inTruck) ok = (px,py)=> tileAtWorld(px,py) !== -1;
+    if(player.inTruck) ok = ()=> true;
     else ok = walkableWorld;
-  } else ok = walkableDungeon;
+  } else if(scene === 'galaxy') ok = ()=> true;
+  else ok = walkableDungeon;
   if(ok(nx, player.y)) player.x = nx;
   if(ok(player.x, ny)) player.y = ny;
 }
+function tryDismountTruck(){
+  if(!player.inTruck) return;
+  player.inTruck = false; player.fireMode = false;
+  truck.x = player.x; truck.y = player.y;
+  if(!walkableWorld(player.x, player.y)){
+    const land = findNearestLand(player.x, player.y);
+    if(land){ player.x = land.x; player.y = land.y; truck.x = land.x; truck.y = land.y; }
+  }
+  showHint('Você desceu do Monster Truck.');
+}
+function findNearestLand(x, y){
+  for(let r=1; r<40; r++){
+    for(let a=0; a<20; a++){
+      const ang = (a/20)*TAU;
+      const tx = x + Math.cos(ang)*r*TS, ty = y + Math.sin(ang)*r*TS;
+      if(walkableWorld(tx, ty)) return {x:tx, y:ty};
+    }
+  }
+  return null;
+}
 
+/* ---------- ATTACK ---------- */
 function doAttack(){
-  player.atkCd = 0.4;
-  player.swing = 0.001;
+  player.atkCd = 0.4; player.swing = 0.001;
   player.stam = Math.max(0, player.stam - 6);
-  const ang = player.aim;
-  const range = 70, arc = Math.PI*0.85;
-  let hit = false;
+  const ang = player.aim, range = 70, arc = Math.PI*0.85;
   for(const e of enemies){
     if(e.dead) continue;
     const d = dist(e.x, e.y, player.x, player.y);
@@ -1103,9 +1169,7 @@ function doAttack(){
     const crit = Math.random() < 0.14;
     damageEnemy(e, player.atk * rnd(0.9,1.18) * (crit?1.9:1), ang);
     if(crit) addFloater(e.x, e.y-e.r-30, 'CRÍTICO', '#ff9f43', 14);
-    hit = true;
   }
-  if(hit) shake = Math.max(shake, 4);
   for(let i=0;i<5;i++){
     const a = ang + rnd(-arc/2, arc/2);
     particles.push({x:player.x+Math.cos(a)*40, y:player.y+Math.sin(a)*40,
@@ -1113,28 +1177,25 @@ function doAttack(){
   }
 }
 
-/* ------------------------- FOGO / ÁRVORES / SPLASH ------------------------- */
+/* ---------- FIRE / TREES / SPLASH ---------- */
 function shootFire(){
   const ang = player.aim;
   const startX = player.x + Math.cos(ang)*48;
   const startY = player.y + Math.sin(ang)*48;
   fireProjectiles.push({
-    x: startX, y: startY,
-    vx: Math.cos(ang)*520, vy: Math.sin(ang)*520,
-    life: 0.75, max: 0.75, r: 22, hitEnemies: new Set()
+    x:startX, y:startY, vx:Math.cos(ang)*520, vy:Math.sin(ang)*520,
+    life:0.75, max:0.75, r:22, hitEnemies:new Set()
   });
   burst(startX, startY, '#ff7040', 4, 120);
 }
-
 function updateFireProjectiles(dt){
   for(let i=fireProjectiles.length-1; i>=0; i--){
     const f = fireProjectiles[i];
     f.life -= dt;
     const speed = Math.hypot(f.vx, f.vy);
-    const steps = Math.max(1, Math.ceil(speed * dt / 14));
+    const steps = Math.max(1, Math.ceil(speed*dt/14));
     for(let s=0; s<steps; s++){
-      f.x += f.vx * dt / steps;
-      f.y += f.vy * dt / steps;
+      f.x += f.vx*dt/steps; f.y += f.vy*dt/steps;
       applyFireToTerrain(f.x, f.y, 26);
       for(const e of enemies){
         if(e.dead || f.hitEnemies.has(e)) continue;
@@ -1146,34 +1207,28 @@ function updateFireProjectiles(dt){
     }
     if(Math.random() < 0.75){
       particles.push({
-        x: f.x + rnd(-10,10), y: f.y + rnd(-10,10),
-        vx: rnd(-40,40), vy: rnd(-80,-20),
-        life: rnd(0.3,0.55), max: 0.55,
-        color: Math.random() < 0.5 ? '#ff7040' : '#ffd166',
-        r: rnd(3, 7)
+        x:f.x + rnd(-10,10), y:f.y + rnd(-10,10),
+        vx:rnd(-40,40), vy:rnd(-80,-20), life:rnd(0.3,0.55), max:0.55,
+        color:Math.random() < 0.5 ? '#ff7040' : '#ffd166', r:rnd(3,7)
       });
     }
     if(f.life <= 0) fireProjectiles.splice(i, 1);
   }
 }
-
 function applyFireToTerrain(x, y, radius){
-  const minTx = Math.floor((x-radius)/TS);
-  const maxTx = Math.floor((x+radius)/TS);
-  const minTy = Math.floor((y-radius)/TS);
-  const maxTy = Math.floor((y+radius)/TS);
+  const minTx = Math.floor((x-radius)/TS), maxTx = Math.floor((x+radius)/TS);
+  const minTy = Math.floor((y-radius)/TS), maxTy = Math.floor((y+radius)/TS);
   for(let ty=minTy; ty<=maxTy; ty++){
     for(let tx=minTx; tx<=maxTx; tx++){
-      if(tx<0||ty<0||tx>=WORLD_W||ty>=WORLD_H) continue;
       const dcx = tx*TS + TS/2, dcy = ty*TS + TS/2;
       if(dist(x, y, dcx, dcy) > radius) continue;
-      const t = worldTiles[ty*WORLD_W+tx];
+      const t = tileAtWorld(dcx, dcy);
       if(t === T.SNOW) setTile(tx, ty, T.GRASS);
       else if(t === T.WATER) setTile(tx, ty, T.SAND);
       const key = tx + ',' + ty;
       if(!destroyedDeco.has(key)){
         const deco = decoAt(tx, ty);
-        if(deco && (deco.type==='tree' || deco.type==='pine' || deco.type==='dead' || deco.type==='bush' || deco.type==='cactus')){
+        if(deco && ['tree','pine','dead','bush','cactus','reed'].includes(deco.type)){
           destroyedDeco.add(key);
           spawnFlyingDeco(dcx, dcy, -Math.PI/2 + rnd(-0.6, 0.6), deco);
           burst(dcx, dcy, '#ff7040', 12, 200);
@@ -1182,22 +1237,18 @@ function applyFireToTerrain(x, y, radius){
     }
   }
 }
-
 function destroyTreesAround(x, y, radius){
-  const minTx = Math.floor((x-radius)/TS);
-  const maxTx = Math.floor((x+radius)/TS);
-  const minTy = Math.floor((y-radius)/TS);
-  const maxTy = Math.floor((y+radius)/TS);
+  const minTx = Math.floor((x-radius)/TS), maxTx = Math.floor((x+radius)/TS);
+  const minTy = Math.floor((y-radius)/TS), maxTy = Math.floor((y+radius)/TS);
   for(let ty=minTy; ty<=maxTy; ty++){
     for(let tx=minTx; tx<=maxTx; tx++){
-      if(tx<0||ty<0||tx>=WORLD_W||ty>=WORLD_H) continue;
       const dcx = tx*TS + TS/2, dcy = ty*TS + TS/2;
       if(dist(x, y, dcx, dcy) > radius) continue;
       const key = tx + ',' + ty;
       if(destroyedDeco.has(key)) continue;
       const deco = decoAt(tx, ty);
       if(!deco) continue;
-      if(deco.type==='tree' || deco.type==='pine' || deco.type==='dead' || deco.type==='bush' || deco.type==='cactus' || deco.type==='reed'){
+      if(['tree','pine','dead','bush','cactus','reed'].includes(deco.type)){
         destroyedDeco.add(key);
         const ang = Math.atan2(dcy - y, dcx - x) + rnd(-0.4, 0.4);
         spawnFlyingDeco(dcx, dcy, ang, deco);
@@ -1206,40 +1257,24 @@ function destroyTreesAround(x, y, radius){
     }
   }
 }
-
 function spawnFlyingDeco(x, y, angle, deco){
   const speed = 420 + Math.random()*220;
   particles.push({
-    x, y,
-    vx: Math.cos(angle) * speed + rnd(-100, 100),
-    vy: -220 - Math.random()*160,
-    life: 2.4, max: 2.4,
-    type: 'flyingDeco',
-    decoType: deco.type,
-    decoSize: deco.s || 1,
-    rot: 0,
-    rotSpeed: rnd(-11, 11),
-    gravity: 800,
-    color: '#3f7a35',
-    r: 16
+    x, y, vx:Math.cos(angle)*speed + rnd(-100,100), vy:-220 - Math.random()*160,
+    life:2.4, max:2.4, type:'flyingDeco', decoType:deco.type, decoSize:deco.s || 1,
+    rot:0, rotSpeed:rnd(-11, 11), gravity:800, color:'#3f7a35', r:16
   });
 }
-
 function spawnSplash(x, y){
-  const a = Math.random()*TAU;
-  const s = rnd(80, 260);
+  const a = Math.random()*TAU, s = rnd(80, 260);
   particles.push({
-    x: x + rnd(-14,14), y: y + rnd(-6,6),
-    vx: Math.cos(a)*s,
-    vy: -160 - Math.random()*220,
-    life: rnd(0.4, 0.8), max: 0.8,
-    color: Math.random() < 0.5 ? '#7dd3fc' : '#cfe3ff',
-    r: rnd(2.5, 6),
-    gravity: 700
+    x:x + rnd(-14,14), y:y + rnd(-6,6), vx:Math.cos(a)*s, vy:-160 - Math.random()*220,
+    life:rnd(0.4, 0.8), max:0.8, color:Math.random() < 0.5 ? '#7dd3fc' : '#cfe3ff',
+    r:rnd(2.5, 6), gravity:700
   });
 }
 
-/* ------------------------- UPDATE: INIMIGOS ------------------------- */
+/* ---------- ENEMIES UPDATE ---------- */
 function updateEnemies(dt){
   for(const e of enemies){
     if(e.dead){
@@ -1262,14 +1297,12 @@ function updateEnemies(dt){
     if(e.isBoss){ updateBoss(e, dt, d); continue; }
     if(d < 420 && !player.dead){ if(e.state === 'idle') e.state = 'chase'; }
     else if(d > 640) e.state = 'idle';
-
     if(e.state === 'idle'){
       e.wanderT -= dt;
       if(e.wanderT <= 0){
         e.wanderT = rnd(1.5, 4);
         const a = Math.random()*TAU, r = rnd(30, 130);
-        e.wx = e.homeX + Math.cos(a)*r;
-        e.wy = e.homeY + Math.sin(a)*r;
+        e.wx = e.homeX + Math.cos(a)*r; e.wy = e.homeY + Math.sin(a)*r;
       }
       const a = Math.atan2(e.wy-e.y, e.wx-e.x);
       if(dist(e.x,e.y,e.wx,e.wy) > 12) moveEnemy(e, Math.cos(a)*e.spd*0.35*dt, Math.sin(a)*e.spd*0.35*dt);
@@ -1295,7 +1328,7 @@ function moveEnemy(e, dx, dy){
   if(ok(e.x, ny)) e.y = ny;
 }
 
-/* ------------------------- BOSS AI ------------------------- */
+/* ---------- BOSS ---------- */
 function updateBoss(b, dt, d){
   if(b.dead) return;
   if(!dungeon.bossActive && d < 520){ dungeon.bossActive = true; showHint('⚔ ' + b.name + ' desperta!'); shake = 12; }
@@ -1353,12 +1386,12 @@ function updateBoss(b, dt, d){
   }
 }
 
-/* ------------------------- HAZARDS / PARTÍCULAS ------------------------- */
+/* ---------- UPDATE: HAZARDS / PARTICLES / GALAXY ---------- */
 function updateHazards(dt){
   for(let i=hazards.length-1;i>=0;i--){
     const h = hazards[i];
     h.t += dt;
-    if(h.t < h.tele){ h.r = h.maxR * (h.t/h.tele); }
+    if(h.t < h.tele) h.r = h.maxR * (h.t/h.tele);
     else {
       h.r = h.maxR;
       if(!h.hit){
@@ -1387,25 +1420,69 @@ function updateParticles(dt){
     if(f.life <= 0) floaters.splice(i,1);
   }
 }
+let spaceSpawnTimer = 0;
+function updateGalaxy(dt){
+  spaceSpawnTimer -= dt;
+  if(spaceSpawnTimer <= 0){
+    spaceSpawnTimer = Math.max(0.35, 1.2 - player.level*0.02);
+    const n = 2 + rndi(3);
+    for(let i=0;i<n;i++) spawnSpaceEnemy();
+  }
+  // enemies
+  for(let i=spaceEnemies.length-1; i>=0; i--){
+    const e = spaceEnemies[i];
+    if(e.dead){ spaceEnemies.splice(i,1); continue; }
+    e.hitFlash = Math.max(0, e.hitFlash - dt);
+    e.wobble += dt*4;
+    const d = dist(e.x, e.y, player.x, player.y);
+    if(d > Math.max(VW, VH) * 1.8){ spaceEnemies.splice(i,1); continue; }
+    const a = Math.atan2(player.y - e.y, player.x - e.x);
+    e.x += Math.cos(a) * e.spd * dt;
+    e.y += Math.sin(a) * e.spd * dt;
+    if(d < e.r + player.r + 8){
+      hurtPlayer(e.dmg, e.x, e.y);
+      e.dead = true;
+      burst(e.x, e.y, e.col, 20, 250);
+    }
+  }
+  // bombs
+  for(let i=spaceBombs.length-1; i>=0; i--){
+    const b = spaceBombs[i];
+    b.life -= dt;
+    b.x += b.vx*dt; b.y += b.vy*dt;
+    let hit = false;
+    for(const e of spaceEnemies){
+      if(e.dead) continue;
+      if(dist(b.x, b.y, e.x, e.y) < e.r + b.r){ explodeBomb(b.x, b.y); hit = true; break; }
+    }
+    if(hit || b.life <= 0){ if(!hit) burst(b.x, b.y, '#ffd166', 8, 180); spaceBombs.splice(i,1); }
+  }
+  // particles
+  for(let i=0;i<8;i++){
+    particles.push({
+      x:cam.x + Math.random()*VW, y:cam.y + Math.random()*VH,
+      vx:0, vy:0, life:0.5, max:0.5,
+      color:'rgba(200,220,255,' + (Math.random()*0.3) + ')', r:1.5
+    });
+  }
+}
 
-/* ------------------------- CÂMERA ------------------------- */
+/* ---------- CAMERA ---------- */
 function updateCamera(dt){
-  let w = WORLD_W*TS, h = WORLD_H*TS;
-  if(scene === 'dungeon'){ w = dungeon.W*TS; h = dungeon.H*TS; }
-  const tx = clamp(player.x - VW/2, 0, Math.max(0, w - VW));
-  const ty = clamp(player.y - VH/2, 0, Math.max(0, h - VH));
+  let tx, ty;
+  if(scene === 'galaxy'){ tx = player.x - VW/2; ty = player.y - VH/2; }
+  else {
+    tx = player.x - VW/2; ty = player.y - VH/2;
+  }
   cam.x = lerp(cam.x, tx, 1 - Math.pow(0.0015, dt));
   cam.y = lerp(cam.y, ty, 1 - Math.pow(0.0015, dt));
 }
 
-/* ------------------------- DECORAÇÕES ------------------------- */
+/* ---------- DECO ---------- */
 function decoAt(tx,ty){
-  const key = tx + ',' + ty;
-  if(destroyedDeco.has(key)) return null;
-  const i = ty*WORLD_W+tx;
-  const t = worldTiles[i];
-  const r = hash2(tx,ty,1234);
-  const r2 = hash2(tx,ty,4321);
+  if(destroyedDeco.has(tx+','+ty)) return null;
+  const t = getChunkTile(tx, ty);
+  const r = hash2(tx,ty,1234), r2 = hash2(tx,ty,4321);
   switch(t){
     case T.FOREST:
       if(r<0.44) return {type:'tree', s:0.85+r2*0.5};
@@ -1419,7 +1496,7 @@ function decoAt(tx,ty){
       return null;
     case T.SAND:
       if(r<0.055) return {type:'cactus', s:0.85+r2*0.4};
-      if(r<0.10)  return {type:'rock', s:0.7+r2*0.5};
+      if(r<0.10) return {type:'rock', s:0.7+r2*0.5};
       return null;
     case T.SNOW:
       if(r<0.16) return {type:'pine', s:0.85+r2*0.45};
@@ -1432,10 +1509,31 @@ function decoAt(tx,ty){
     case T.ROCK:
       if(r<0.20) return {type:'rock', s:0.9+r2*0.7};
       return null;
+    case T.DESERT:
+      if(r<0.08) return {type:'cactus', s:0.9+r2*0.5};
+      if(r<0.14) return {type:'rock', s:0.7+r2*0.4};
+      return null;
+    case T.VOLCANO:
+      if(r<0.18) return {type:'rock', s:0.8+r2*0.6};
+      if(r<0.26) return {type:'dead', s:0.9+r2*0.4};
+      return null;
+    case T.TUNDRA:
+      if(r<0.10) return {type:'rock', s:0.7+r2*0.4};
+      if(r<0.16) return {type:'bush', s:0.6+r2*0.3};
+      return null;
+    case T.JUNGLE:
+      if(r<0.50) return {type:'tree', s:1.05+r2*0.6};
+      if(r<0.62) return {type:'bush', s:0.9+r2*0.5};
+      if(r<0.72) return {type:'flower', s:1, c:r2};
+      return null;
+    case T.SAVANNA:
+      if(r<0.10) return {type:'bush', s:0.7+r2*0.4};
+      if(r<0.16) return {type:'dead', s:0.8+r2*0.4};
+      if(r<0.20) return {type:'rock', s:0.7+r2*0.4};
+      return null;
   }
   return null;
 }
-
 function drawDeco(d, x, y){
   const s = d.s || 1;
   switch(d.type){
@@ -1457,7 +1555,7 @@ function drawDeco(d, x, y){
       ctx.fillStyle='#4a3520'; ctx.fillRect(x-3*s, y-18*s, 6*s, 18*s);
       ctx.fillStyle='#1f5f38';
       for(let i=0;i<3;i++){
-        const yy = y - 16*s - i*13*s, ww = (20-i*5)*s;
+        const yy = y-16*s-i*13*s, ww = (20-i*5)*s;
         ctx.beginPath(); ctx.moveTo(x, yy-22*s); ctx.lineTo(x-ww, yy); ctx.lineTo(x+ww, yy); ctx.closePath(); ctx.fill();
       }
       ctx.fillStyle='rgba(255,255,255,0.55)';
@@ -1520,7 +1618,7 @@ function drawDeco(d, x, y){
   }
 }
 
-/* ------------------------- CRIATURAS ------------------------- */
+/* ---------- CREATURES ---------- */
 function drawCreature(e, sx, sy, t){
   const bob = Math.sin(e.wobble)*2.5;
   const flash = e.hitFlash > 0;
@@ -1529,7 +1627,6 @@ function drawCreature(e, sx, sy, t){
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath(); ctx.ellipse(sx, sy + e.r*0.7, e.r*0.95, e.r*0.36, 0,0,TAU); ctx.fill();
   const y = sy + bob;
-
   if(e.isBoss && bossImgReady){
     const size = e.r * 3.4;
     const bx = sx - size/2, by = y - size/2 - e.r*0.4;
@@ -1548,7 +1645,6 @@ function drawCreature(e, sx, sy, t){
     }
     return;
   }
-
   switch(e.shape){
     case 'slime': {
       const sq = 1 + Math.sin(e.wobble*1.6)*0.09;
@@ -1627,13 +1723,11 @@ function drawCreature(e, sx, sy, t){
   }
 }
 
-/* ------------------------- DESENHO: JOGADOR / TRUCK ------------------------- */
+/* ---------- PLAYER DRAW ---------- */
 function drawPlayer(){
   if(player.dead) return;
-  if(player.inTruck){
-    drawTruckAt(player.x - cam.x, player.y - cam.y, player.truckAngle);
-    return;
-  }
+  if(scene === 'galaxy'){ drawShip(player.x-cam.x, player.y-cam.y, player.aim); return; }
+  if(player.inTruck){ drawTruckAt(player.x-cam.x, player.y-cam.y, player.truckAngle); return; }
   const sx = player.x - cam.x, sy = player.y - cam.y;
   const bob = Math.sin(player.walkT)*1.8;
   const y = sy + bob;
@@ -1700,16 +1794,11 @@ function drawPlayer(){
   }
   ctx.restore();
 }
-
 function drawTruckAt(sx, sy, angle){
-  const y = sy;
-  // sombra
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.beginPath(); ctx.ellipse(sx, y+14, 46, 18, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(sx, sy+14, 46, 18, 0, 0, TAU); ctx.fill();
   ctx.save();
-  ctx.translate(sx, y);
-  ctx.rotate(angle);
-  // rodas
+  ctx.translate(sx, sy); ctx.rotate(angle);
   ctx.fillStyle = '#0a0a0a';
   const wheels = [[-26,-20],[26,-20],[-26,20],[26,20]];
   for(const [wx, wy] of wheels){
@@ -1718,134 +1807,154 @@ function drawTruckAt(sx, sy, angle){
     ctx.beginPath(); ctx.ellipse(wx, wy, 6, 4, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = '#0a0a0a';
   }
-  // chassi
   const cg = ctx.createLinearGradient(0,-22,0,22);
   cg.addColorStop(0,'#e05030'); cg.addColorStop(1,'#8a1a10');
-  ctx.fillStyle = cg;
-  ctx.beginPath(); ctx.roundRect(-42, -20, 84, 40, 8); ctx.fill();
-  // faixa
-  ctx.fillStyle = '#ffd166';
-  ctx.fillRect(-42, -2, 84, 4);
-  // cabine
-  ctx.fillStyle = '#6a1010';
-  ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 5); ctx.fill();
-  // parabrisa
-  ctx.fillStyle = '#9ad8f8';
-  ctx.beginPath(); ctx.roundRect(8, -12, 10, 24, 3); ctx.fill();
-  // faróis
+  ctx.fillStyle = cg; ctx.beginPath(); ctx.roundRect(-42, -20, 84, 40, 8); ctx.fill();
+  ctx.fillStyle = '#ffd166'; ctx.fillRect(-42, -2, 84, 4);
+  ctx.fillStyle = '#6a1010'; ctx.beginPath(); ctx.roundRect(-16, -16, 32, 32, 5); ctx.fill();
+  ctx.fillStyle = '#9ad8f8'; ctx.beginPath(); ctx.roundRect(8, -12, 10, 24, 3); ctx.fill();
   ctx.fillStyle = '#fff3b0';
   ctx.beginPath(); ctx.arc(40, -10, 3.5, 0, TAU); ctx.fill();
   ctx.beginPath(); ctx.arc(40, 10, 3.5, 0, TAU); ctx.fill();
-  // escapamento
-  ctx.fillStyle = '#888';
-  ctx.fillRect(-46, -8, 8, 4);
-  ctx.fillRect(-46, 4, 8, 4);
-  // modo fogo (chamas traseiras + canhão)
+  ctx.fillStyle = '#888'; ctx.fillRect(-46, -8, 8, 4); ctx.fillRect(-46, 4, 8, 4);
   if(player.fireMode){
     for(let i=0;i<3;i++){
       const fx = -50 - i*8;
       const fsize = 10 + Math.sin(gameTime*25 + i)*4;
       const fg = ctx.createRadialGradient(fx, 0, 2, fx, 0, fsize);
       fg.addColorStop(0,'#fff3b0'); fg.addColorStop(0.5,'#ff7040'); fg.addColorStop(1,'rgba(255,80,0,0)');
-      ctx.fillStyle = fg;
-      ctx.beginPath(); ctx.arc(fx, 0, fsize, 0, TAU); ctx.fill();
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(fx, 0, fsize, 0, TAU); ctx.fill();
     }
   }
-  // aura quando modo fogo
   ctx.restore();
   if(player.fireMode){
-    const gl = ctx.createRadialGradient(sx, y, 20, sx, y, 60);
-    gl.addColorStop(0,'rgba(255,112,64,0.4)');
-    gl.addColorStop(1,'rgba(255,112,64,0)');
-    ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(sx, y, 60, 0, TAU); ctx.fill();
+    const gl = ctx.createRadialGradient(sx, sy, 20, sx, sy, 60);
+    gl.addColorStop(0,'rgba(255,112,64,0.4)'); gl.addColorStop(1,'rgba(255,112,64,0)');
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(sx, sy, 60, 0, TAU); ctx.fill();
+  }
+}
+function drawShip(sx, sy, ang){
+  const gl = ctx.createRadialGradient(sx, sy, 10, sx, sy, 60);
+  gl.addColorStop(0, 'rgba(106,184,255,0.4)'); gl.addColorStop(1, 'rgba(106,184,255,0)');
+  ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(sx, sy, 60, 0, TAU); ctx.fill();
+  ctx.save();
+  ctx.translate(sx, sy); ctx.rotate(ang);
+  // engine flame
+  ctx.fillStyle = '#ff8844';
+  ctx.beginPath(); ctx.arc(-18 - Math.random()*4, 0, 6 + Math.random()*4, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fff3b0';
+  ctx.beginPath(); ctx.arc(-18, 0, 3 + Math.random()*2, 0, TAU); ctx.fill();
+  // body
+  ctx.fillStyle = '#6ab8ff';
+  ctx.beginPath(); ctx.moveTo(26,0); ctx.lineTo(-16,-16); ctx.lineTo(-10,0); ctx.lineTo(-16,16); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#3a88cf';
+  ctx.beginPath(); ctx.moveTo(20,0); ctx.lineTo(-10,-8); ctx.lineTo(-10,8); ctx.closePath(); ctx.fill();
+  // cockpit
+  ctx.fillStyle = '#cfe3ff';
+  ctx.beginPath(); ctx.arc(4, 0, 5, 0, TAU); ctx.fill();
+  // wings
+  ctx.fillStyle = '#3a6ecf';
+  ctx.fillRect(-8, -16, 6, 4);
+  ctx.fillRect(-8, 12, 6, 4);
+  ctx.restore();
+}
+function drawSpaceEnemy(e, sx, sy){
+  const flash = e.hitFlash > 0;
+  if(e.type === 'drone'){
+    ctx.fillStyle = flash ? '#ffffff' : e.col;
+    ctx.beginPath(); ctx.arc(sx, sy, e.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = flash ? '#ffdddd' : '#ff4d4d';
+    ctx.beginPath(); ctx.arc(sx, sy, e.r*0.4, 0, TAU); ctx.fill();
+  } else if(e.type === 'fighter'){
+    const ang = Math.atan2(player.y - e.y, player.x - e.x);
+    ctx.save(); ctx.translate(sx, sy); ctx.rotate(ang);
+    ctx.fillStyle = flash ? '#ffffff' : e.col;
+    ctx.beginPath(); ctx.moveTo(-e.r, -e.r*0.7); ctx.lineTo(e.r, 0); ctx.lineTo(-e.r, e.r*0.7); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff4d4d';
+    ctx.beginPath(); ctx.arc(0, 0, 3, 0, TAU); ctx.fill();
+    ctx.restore();
+  } else {
+    ctx.fillStyle = flash ? '#ffffff' : e.col;
+    ctx.beginPath(); ctx.arc(sx, sy, e.r, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#8a1020';
+    ctx.beginPath(); ctx.arc(sx, sy, e.r*0.65, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ff4d4d';
+    ctx.beginPath(); ctx.arc(sx-e.r*0.5, sy, 3, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx+e.r*0.5, sy, 3, 0, TAU); ctx.fill();
+  }
+  if(e.hp < e.maxHp){
+    const w = e.r*2, hh = 3;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(sx-w/2-1, sy-e.r-8, w+2, hh+2);
+    ctx.fillStyle = '#e34a4a';
+    ctx.fillRect(sx-w/2, sy-e.r-7, w*clamp(e.hp/e.maxHp,0,1), hh);
   }
 }
 
-function drawTruckParked(){
-  if(!truck.exists || player.inTruck) return;
-  if(truck.x < cam.x-100 || truck.x > cam.x+VW+100 || truck.y < cam.y-100 || truck.y > cam.y+VH+100) return;
-  const sx = truck.x - cam.x, sy = truck.y - cam.y;
-  const bob = Math.sin(gameTime*2)*1;
-  drawTruckAt(sx, sy + bob, player.aim);
-  // hint
-  ctx.fillStyle = '#ffd166'; ctx.font = 'bold 12px Trebuchet MS'; ctx.textAlign = 'center';
-  ctx.fillText('🚛 TRUCK [E]', sx, sy - 40);
-}
-
-/* ------------------------- DESENHO: LOJA ------------------------- */
+/* ---------- SHOP WORLD DRAW ---------- */
 function drawShopWorld(){
   if(!shop) return;
   const sx = shop.x - cam.x, sy = shop.y - cam.y;
   if(sx < -150 || sx > VW+150 || sy < -150 || sy > VH+150) return;
-  // sombra
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath(); ctx.ellipse(sx, sy+14, 50, 14, 0, 0, TAU); ctx.fill();
-  // chão de madeira
-  ctx.fillStyle = '#5a3a22';
-  ctx.fillRect(sx-44, sy-16, 88, 34);
+  ctx.fillStyle = '#5a3a22'; ctx.fillRect(sx-44, sy-16, 88, 34);
   ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 1;
   for(let i=-40; i<44; i+=14){ ctx.beginPath(); ctx.moveTo(sx+i, sy-16); ctx.lineTo(sx+i, sy+18); ctx.stroke(); }
-  // balcão
-  ctx.fillStyle = '#8a6a2a';
-  ctx.fillRect(sx-36, sy-10, 72, 22);
-  ctx.fillStyle = '#b08a4a';
-  ctx.fillRect(sx-36, sy-10, 72, 4);
-  // itens no balcão
+  ctx.fillStyle = '#8a6a2a'; ctx.fillRect(sx-36, sy-10, 72, 22);
+  ctx.fillStyle = '#b08a4a'; ctx.fillRect(sx-36, sy-10, 72, 4);
   ctx.fillStyle = '#ffd166';
   ctx.beginPath(); ctx.arc(sx-20, sy-14, 4, 0, TAU); ctx.fill();
   ctx.beginPath(); ctx.arc(sx-10, sy-14, 4, 0, TAU); ctx.fill();
   ctx.fillStyle = '#7dffb0';
   ctx.beginPath(); ctx.arc(sx+10, sy-14, 5, 0, TAU); ctx.fill();
-  // toldo
   ctx.fillStyle = '#c84020';
   ctx.beginPath();
   ctx.moveTo(sx-56, sy-20); ctx.lineTo(sx+56, sy-20);
-  ctx.lineTo(sx+44, sy-56); ctx.lineTo(sx-44, sy-56);
-  ctx.closePath(); ctx.fill();
-  // listras
+  ctx.lineTo(sx+44, sy-56); ctx.lineTo(sx-44, sy-56); ctx.closePath(); ctx.fill();
   for(let i=0; i<5; i++){
     ctx.fillStyle = i%2 ? '#ffd166' : '#ffe9b0';
     const x = sx - 50 + i*22;
     ctx.beginPath();
     ctx.moveTo(x, sy-56); ctx.lineTo(x+11, sy-56);
-    ctx.lineTo(x+14, sy-20); ctx.lineTo(x+3, sy-20);
-    ctx.closePath(); ctx.fill();
+    ctx.lineTo(x+14, sy-20); ctx.lineTo(x+3, sy-20); ctx.closePath(); ctx.fill();
   }
-  // mercador
-  ctx.fillStyle = '#e8c9a0';
-  ctx.beginPath(); ctx.arc(sx, sy-32, 9, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#8a5a2a';
-  ctx.beginPath(); ctx.roundRect(sx-8, sy-26, 16, 14, 3); ctx.fill();
+  ctx.fillStyle = '#e8c9a0'; ctx.beginPath(); ctx.arc(sx, sy-32, 9, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#8a5a2a'; ctx.beginPath(); ctx.roundRect(sx-8, sy-26, 16, 14, 3); ctx.fill();
   ctx.fillStyle = '#c84020';
   ctx.beginPath(); ctx.moveTo(sx-10, sy-38); ctx.lineTo(sx+10, sy-38); ctx.lineTo(sx, sy-50); ctx.closePath(); ctx.fill();
-  // olhos
   ctx.fillStyle = '#1a1a1a';
   ctx.beginPath(); ctx.arc(sx-3, sy-33, 1.5, 0, TAU); ctx.fill();
   ctx.beginPath(); ctx.arc(sx+3, sy-33, 1.5, 0, TAU); ctx.fill();
-  // placa
   ctx.fillStyle = '#ffd166'; ctx.font = 'bold 12px Trebuchet MS'; ctx.textAlign = 'center';
   ctx.fillText('🛒 LOJA [E]', sx, sy-66);
 }
 
-/* ------------------------- RENDER: MUNDO / DUNGEON ------------------------- */
+/* ---------- RENDERING ---------- */
 function renderWorld(){
-  const startX = Math.max(0, Math.floor(cam.x/TS));
-  const endX   = Math.min(WORLD_W, Math.ceil((cam.x+VW)/TS));
-  const startY = Math.max(0, Math.floor(cam.y/TS));
-  const endY   = Math.min(WORLD_H, Math.ceil((cam.y+VH)/TS));
+  const startX = Math.floor(cam.x/TS) - 1;
+  const endX = Math.ceil((cam.x+VW)/TS) + 1;
+  const startY = Math.floor(cam.y/TS) - 1;
+  const endY = Math.ceil((cam.y+VH)/TS) + 1;
   for(let ty=startY; ty<endY; ty++){
     for(let tx=startX; tx<endX; tx++){
-      const i = ty*WORLD_W+tx;
-      const t = worldTiles[i];
-      let col = worldColor[i];
+      const px = tx*TS - cam.x, py = ty*TS - cam.y;
+      const key = tx+','+ty;
+      const t = tileOverrides.has(key) ? tileOverrides.get(key) : getChunkTile(tx, ty);
+      const c = TILE_RGB[t];
       if(t === T.WATER){
         const w = Math.sin(gameTime*1.8 + tx*0.45 + ty*0.35)*10;
-        const c = TILE_RGB[0];
-        col = `rgb(${(c[0]+w)|0},${(c[1]+w)|0},${(c[2]+w*1.4)|0})`;
+        ctx.fillStyle = `rgb(${(c[0]+w)|0},${(c[1]+w)|0},${(c[2]+w*1.4)|0})`;
+      } else {
+        const v = 0.87 + hash2(tx, ty, 55)*0.26;
+        ctx.fillStyle = `rgb(${Math.min(255,c[0]*v)|0},${Math.min(255,c[1]*v)|0},${Math.min(255,c[2]*v)|0})`;
       }
-      ctx.fillStyle = col;
-      ctx.fillRect(tx*TS-cam.x, ty*TS-cam.y, TS+1, TS+1);
+      ctx.fillRect(px, py, TS+1, TS+1);
+      // volcano lava glow
+      if(t === T.VOLCANO && hash2(tx, ty, 999) < 0.05){
+        ctx.fillStyle = 'rgba(255,112,64,' + (0.2 + Math.sin(gameTime*3 + tx + ty)*0.15) + ')';
+        ctx.fillRect(px+6, py+6, TS-12, TS-12);
+      }
     }
   }
   ctx.fillStyle = 'rgba(255,240,200,0.03)';
@@ -1854,9 +1963,9 @@ function renderWorld(){
 function renderDungeon(){
   const th = dungeon.theme;
   const startX = Math.max(0, Math.floor(cam.x/TS));
-  const endX   = Math.min(dungeon.W, Math.ceil((cam.x+VW)/TS));
+  const endX = Math.min(dungeon.W, Math.ceil((cam.x+VW)/TS));
   const startY = Math.max(0, Math.floor(cam.y/TS));
-  const endY   = Math.min(dungeon.H, Math.ceil((cam.y+VH)/TS));
+  const endY = Math.min(dungeon.H, Math.ceil((cam.y+VH)/TS));
   for(let ty=startY; ty<endY; ty++){
     for(let tx=startX; tx<endX; tx++){
       const i = ty*dungeon.W+tx;
@@ -1881,24 +1990,51 @@ function renderDungeon(){
   const pulse = 1 + Math.sin(gameTime*3)*0.12;
   const g2 = ctx.createRadialGradient(ex, ey, 2, ex, ey, 40*pulse);
   g2.addColorStop(0, th.accent); g2.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g2;
-  ctx.beginPath(); ctx.arc(ex, ey, 40*pulse, 0, TAU); ctx.fill();
+  ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(ex, ey, 40*pulse, 0, TAU); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Trebuchet MS'; ctx.textAlign = 'center';
   ctx.fillText('SAÍDA [E]', ex, ey - 46);
 }
+function renderGalaxy(){
+  ctx.fillStyle = '#03030a'; ctx.fillRect(0,0,VW,VH);
+  // parallax stars
+  for(let i=0;i<220;i++){
+    const h = hash2(i, i*7, 42), h2 = hash2(i*3, i, 99);
+    const h3 = hash2(i, i*13, 77);
+    const depth = 0.15 + h3*0.5;
+    let x = (h*3000 - cam.x*depth) % VW;
+    let y = (h2*3000 - cam.y*depth) % VH;
+    if(x < 0) x += VW; if(y < 0) y += VH;
+    ctx.fillStyle = `rgba(${200+h*55|0},${200+h2*55|0},255,${0.4+h3*0.6})`;
+    const sz = 1 + h3*2;
+    ctx.fillRect(x, y, sz, sz);
+  }
+  // nebula
+  for(let i=0;i<5;i++){
+    const nx = (hash2(i, 0, 22)*2000 - cam.x*0.3) % (VW*2);
+    const ny = (hash2(i, 1, 33)*2000 - cam.y*0.3) % (VH*2);
+    const xx = ((nx % (VW*2)) + VW*2) % (VW*2) - VW*0.5;
+    const yy = ((ny % (VH*2)) + VH*2) % (VH*2) - VH*0.5;
+    const g = ctx.createRadialGradient(xx, yy, 10, xx, yy, 200);
+    const cols = [['100,50,180','0,0,0'],['180,50,100','0,0,0'],['50,100,180','0,0,0'],['200,100,50','0,0,0'],['80,80,200','0,0,0']];
+    g.addColorStop(0, 'rgba(' + cols[i][0] + ',0.06)');
+    g.addColorStop(1, 'rgba(' + cols[i][1] + ',0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(xx-200, yy-200, 400, 400);
+  }
+}
 
-/* ------------------------- LISTA ORDENADA ------------------------- */
+/* ---------- DRAW LIST ---------- */
 let drawList = [];
 function renderSceneEntities(){
   drawList.length = 0;
   if(scene === 'world'){
-    const startX = Math.max(0, Math.floor(cam.x/TS)-1);
-    const endX   = Math.min(WORLD_W, Math.ceil((cam.x+VW)/TS)+1);
-    const startY = Math.max(0, Math.floor(cam.y/TS)-1);
-    const endY   = Math.min(WORLD_H, Math.ceil((cam.y+VH)/TS)+1);
+    const startX = Math.floor(cam.x/TS) - 1;
+    const endX = Math.ceil((cam.x+VW)/TS) + 1;
+    const startY = Math.floor(cam.y/TS) - 1;
+    const endY = Math.ceil((cam.y+VH)/TS) + 1;
     for(let ty=startY; ty<endY; ty++){
       for(let tx=startX; tx<endX; tx++){
-        const d = decoAt(tx,ty);
+        const d = decoAt(tx, ty);
         if(d){
           const bx = tx*TS + TS/2 + (hash2(tx,ty,7)-0.5)*14;
           const by = ty*TS + TS - 3;
@@ -1907,10 +2043,20 @@ function renderSceneEntities(){
       }
     }
   }
-  for(const e of enemies){
-    if(e.dead) continue;
-    if(e.x < cam.x-200 || e.x > cam.x+VW+200 || e.y < cam.y-240 || e.y > cam.y+VH+240) continue;
-    drawList.push({y:e.y, kind:'ent', e});
+  if(scene !== 'galaxy'){
+    for(const e of enemies){
+      if(e.dead) continue;
+      if(e.x < cam.x-200 || e.x > cam.x+VW+200 || e.y < cam.y-240 || e.y > cam.y+VH+240) continue;
+      drawList.push({y:e.y, kind:'ent', e});
+    }
+  } else {
+    for(const e of spaceEnemies){
+      if(e.dead) continue;
+      drawList.push({y:e.y, kind:'sent', e});
+    }
+    for(const b of spaceBombs){
+      drawList.push({y:b.y, kind:'bomb', b});
+    }
   }
   if(scene === 'world'){
     if(shop) drawList.push({y:shop.y, kind:'shop'});
@@ -1927,24 +2073,41 @@ function renderSceneEntities(){
       drawDeco(item.d, item.x-cam.x, item.y2-cam.y);
     } else if(item.kind === 'ent'){
       drawCreature(item.e, item.e.x-cam.x, item.e.y-cam.y, gameTime);
+    } else if(item.kind === 'sent'){
+      drawSpaceEnemy(item.e, item.e.x-cam.x, item.e.y-cam.y);
+    } else if(item.kind === 'bomb'){
+      const b = item.b;
+      const sx = b.x-cam.x, sy = b.y-cam.y;
+      for(let i=1;i<=3;i++){
+        ctx.globalAlpha = 0.4 - i*0.1;
+        ctx.fillStyle = '#ff7040';
+        ctx.beginPath(); ctx.arc(sx - b.vx*i*0.015, sy - b.vy*i*0.015, 5-i, 0, TAU); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffd166';
+      ctx.beginPath(); ctx.arc(sx, sy, 6, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff3b0';
+      ctx.beginPath(); ctx.arc(sx, sy, 3, 0, TAU); ctx.fill();
     } else if(item.kind === 'player'){
       drawPlayer();
     } else if(item.kind === 'shop'){
       drawShopWorld();
     } else if(item.kind === 'truckParked'){
-      drawTruckParked();
+      if(truck.x < cam.x-100 || truck.x > cam.x+VW+100 || truck.y < cam.y-100 || truck.y > cam.y+VH+100) continue;
+      const sx = truck.x - cam.x, sy = truck.y - cam.y;
+      drawTruckAt(sx, sy + Math.sin(gameTime*2)*1, player.aim);
+      ctx.fillStyle = '#ffd166'; ctx.font = 'bold 12px Trebuchet MS'; ctx.textAlign = 'center';
+      ctx.fillText('🚛 TRUCK [E]', sx, sy - 40);
     } else if(item.kind === 'fire'){
       const b = item.b;
       const sx = b.x-cam.x, sy = b.y-cam.y;
       const isActive = bonfireMode && player.atBonfire === b;
-      const auraR = isActive ? 90 : 44;
-      const auraA = isActive ? 0.65 : 0.35;
+      const auraR = isActive ? 90 : 44, auraA = isActive ? 0.65 : 0.35;
       const ag = ctx.createRadialGradient(sx, sy, 2, sx, sy, auraR);
       ag.addColorStop(0, `rgba(255,220,120,${auraA})`);
       ag.addColorStop(0.4, `rgba(255,160,50,${auraA*0.5})`);
       ag.addColorStop(1, 'rgba(255,100,0,0)');
-      ctx.fillStyle = ag;
-      ctx.beginPath(); ctx.arc(sx, sy, auraR, 0, TAU); ctx.fill();
+      ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(sx, sy, auraR, 0, TAU); ctx.fill();
       ctx.fillStyle='rgba(0,0,0,0.3)';
       ctx.beginPath(); ctx.ellipse(sx, sy+8, 20, 7, 0,0,TAU); ctx.fill();
       ctx.fillStyle='#5a4028'; ctx.fillRect(sx-14, sy-4, 28, 10);
@@ -1957,6 +2120,7 @@ function renderSceneEntities(){
     } else if(item.kind === 'portal'){
       const d = item.d;
       const sx = d.x-cam.x, sy = d.y-cam.y;
+      if(sx < -150 || sx > VW+150 || sy < -150 || sy > VH+150) continue;
       const th = THEMES[DUNGEON_DEFS[d.idx].theme];
       const pulse = 1 + Math.sin(gameTime*2.4 + d.idx)*0.1;
       ctx.fillStyle='rgba(0,0,0,0.35)';
@@ -1985,9 +2149,8 @@ function renderSceneEntities(){
   }
 }
 
-/* ------------------------- RENDER: FX ------------------------- */
+/* ---------- FX ---------- */
 function renderFX(){
-  // hazards
   for(const h of hazards){
     const sx = h.x-cam.x, sy = h.y-cam.y;
     ctx.save();
@@ -2003,7 +2166,6 @@ function renderFX(){
     }
     ctx.restore();
   }
-  // fire projectiles
   for(const f of fireProjectiles){
     const fx = f.x-cam.x, fy = f.y-cam.y;
     const grad = ctx.createRadialGradient(fx, fy, 0, fx, fy, f.r*2);
@@ -2015,30 +2177,24 @@ function renderFX(){
     ctx.fillStyle = '#fff3b0';
     ctx.beginPath(); ctx.arc(fx, fy, f.r*0.5, 0, TAU); ctx.fill();
   }
-  // particles
   for(const p of particles){
     const a = clamp(p.life/p.max, 0, 1);
     ctx.globalAlpha = a;
     if(p.type === 'flyingDeco'){
       const px = p.x-cam.x, py = p.y-cam.y;
       const s = p.decoSize || 1;
-      ctx.save();
-      ctx.translate(px, py); ctx.rotate(p.rot);
+      ctx.save(); ctx.translate(px, py); ctx.rotate(p.rot);
       if(p.decoType === 'tree' || p.decoType === 'pine'){
-        ctx.fillStyle = '#3a2510';
-        ctx.fillRect(-3*s, -6*s, 6*s, 14*s);
+        ctx.fillStyle = '#3a2510'; ctx.fillRect(-3*s, -6*s, 6*s, 14*s);
         ctx.fillStyle = '#2f6b2e';
         ctx.beginPath(); ctx.arc(-12*s, 0, 8*s, 0, TAU); ctx.fill();
         ctx.beginPath(); ctx.arc(12*s, 0, 8*s, 0, TAU); ctx.fill();
         ctx.beginPath(); ctx.arc(0, -5*s, 10*s, 0, TAU); ctx.fill();
-        ctx.fillStyle = '#3f8a3c';
-        ctx.beginPath(); ctx.arc(-5*s, -8*s, 6*s, 0, TAU); ctx.fill();
       } else if(p.decoType === 'bush'){
         ctx.fillStyle = '#2c5f2a';
         ctx.beginPath(); ctx.arc(0, 0, 10*s, 0, TAU); ctx.fill();
       } else if(p.decoType === 'cactus'){
-        ctx.fillStyle = '#4b8a4b';
-        ctx.fillRect(-4*s, -14*s, 8*s, 28*s);
+        ctx.fillStyle = '#4b8a4b'; ctx.fillRect(-4*s, -14*s, 8*s, 28*s);
       } else if(p.decoType === 'dead' || p.decoType === 'reed'){
         ctx.strokeStyle = '#4a4038'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(0, 8*s); ctx.lineTo(0, -12*s); ctx.stroke();
@@ -2053,7 +2209,6 @@ function renderFX(){
     ctx.beginPath(); ctx.arc(p.x-cam.x, p.y-cam.y, p.r*a, 0, TAU); ctx.fill();
   }
   ctx.globalAlpha = 1;
-  // floaters
   ctx.textAlign = 'center';
   for(const f of floaters){
     const a = clamp(f.life, 0, 1);
@@ -2068,7 +2223,7 @@ function renderFX(){
   ctx.globalAlpha = 1;
 }
 
-/* ------------------------- HUD ------------------------- */
+/* ---------- HUD ---------- */
 function drawBar(x,y,w,h,pct,c1,c2,label){
   ctx.fillStyle='rgba(0,0,0,0.62)';
   ctx.beginPath(); ctx.roundRect(x-2,y-2,w+4,h+4,6); ctx.fill();
@@ -2083,6 +2238,62 @@ function drawBar(x,y,w,h,pct,c1,c2,label){
     ctx.fillText(label, x+8, y+h-4);
   }
 }
+function drawMinimap(){
+  const mw = 170, mh = 170, mx = VW-mw-20, my = 20;
+  ctx.save();
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.roundRect(mx-4,my-4,mw+8,mh+8,10); ctx.fill();
+  ctx.strokeStyle='#3a5a80'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(mx-4,my-4,mw+8,mh+8,10); ctx.stroke();
+  ctx.beginPath(); ctx.roundRect(mx,my,mw,mh,7); ctx.clip();
+  const tilesAround = 25;
+  const px = mw / tilesAround;
+  const centerTx = Math.floor(player.x/TS);
+  const centerTy = Math.floor(player.y/TS);
+  for(let i=0; i<tilesAround; i++){
+    for(let j=0; j<tilesAround; j++){
+      const tx = centerTx - (tilesAround>>1) + i;
+      const ty = centerTy - (tilesAround>>1) + j;
+      const key = tx+','+ty;
+      const t = tileOverrides.has(key) ? tileOverrides.get(key) : getChunkTile(tx, ty);
+      const c = TILE_RGB[t];
+      ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+      ctx.fillRect(mx + i*px, my + j*px, px+1, px+1);
+    }
+  }
+  // markers
+  const range = tilesAround * TS;
+  for(const d of dungeonEntrances){
+    const dx = d.x - player.x, dy = d.y - player.y;
+    if(Math.abs(dx) > range/2 || Math.abs(dy) > range/2) continue;
+    const sx = mx + mw/2 + (dx/range)*mw;
+    const sy = my + mh/2 + (dy/range)*mh;
+    ctx.fillStyle = '#ffd166';
+    ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, TAU); ctx.fill();
+  }
+  if(shop){
+    const dx = shop.x - player.x, dy = shop.y - player.y;
+    if(Math.abs(dx) < range/2 && Math.abs(dy) < range/2){
+      const sx = mx + mw/2 + (dx/range)*mw;
+      const sy = my + mh/2 + (dy/range)*mh;
+      ctx.fillStyle = '#7dffb0';
+      ctx.beginPath(); ctx.arc(sx, sy, 3, 0, TAU); ctx.fill();
+    }
+  }
+  for(const b of bonfires){
+    const dx = b.x - player.x, dy = b.y - player.y;
+    if(Math.abs(dx) > range/2 || Math.abs(dy) > range/2) continue;
+    const sx = mx + mw/2 + (dx/range)*mw;
+    const sy = my + mh/2 + (dy/range)*mh;
+    ctx.fillStyle = '#ffb703';
+    ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, TAU); ctx.fill();
+  }
+  // player
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(mx+mw/2, my+mh/2, 3.6, 0, TAU); ctx.fill();
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.restore();
+}
 function drawHUD(){
   drawBar(20, 20, 280, 18, player.hp/player.maxHp, '#ff6b6b', '#a01f1f', `VIDA ${Math.ceil(player.hp)}/${player.maxHp}`);
   drawBar(20, 44, 220, 12, player.stam/player.maxStam, '#7dd3fc', '#2563a8', '');
@@ -2093,57 +2304,46 @@ function drawHUD(){
   ctx.font='bold 15px Trebuchet MS';
   ctx.fillStyle='#ffd166'; ctx.fillText('⛁ ' + player.gold, 20, 120);
   ctx.fillStyle='#7dffb0'; ctx.fillText('⚗ ' + player.potions + ' [1]', 130, 120);
-
+  let yInfo = 145;
   if(player.bootTier > 0){
     ctx.fillStyle='#9ad8f8'; ctx.font='bold 13px Trebuchet MS';
-    ctx.fillText('👟 Botas T' + player.bootTier + ' (+' + Math.round((bootBonus(player.bootTier)-1)*100) + '%)', 20, 145);
+    ctx.fillText('👟 Botas T' + player.bootTier + ' (+' + Math.round((bootBonus(player.bootTier)-1)*100) + '%)', 20, yInfo); yInfo += 20;
   }
   if(player.hasSpinningSword){
-    ctx.fillStyle='#ffd166'; ctx.font='bold 14px Trebuchet MS';
-    ctx.fillText('🗡 Espada Giratória', 20, player.bootTier > 0 ? 168 : 145);
+    ctx.fillStyle='#ffd166'; ctx.font='bold 13px Trebuchet MS';
+    ctx.fillText('🗡 Espada Giratória', 20, yInfo); yInfo += 20;
   }
+  if(player.hasShip){
+    ctx.fillStyle='#6ab8ff'; ctx.font='bold 13px Trebuchet MS';
+    ctx.fillText('🚀 Nave Espacial [G]', 20, yInfo); yInfo += 20;
+  }
+  if(debug.speedMult !== 1){
+    ctx.fillStyle='#ff7040'; ctx.font='bold 13px Trebuchet MS';
+    ctx.fillText('⚡ DEBUG: Velocidade ×' + debug.speedMult, 20, yInfo);
+  }
+
   if(player.inTruck){
     ctx.fillStyle = player.fireMode ? '#ff7040' : '#ffd166';
     ctx.font = 'bold 16px Trebuchet MS'; ctx.textAlign = 'center';
-    ctx.fillText(player.fireMode ? '🔥 MODO FOGO ATIVO  (F)' : '🚛 MONSTER TRUCK  (F = fogo)', VW/2, 30);
+    ctx.fillText(player.fireMode ? '🔥 MODO FOGO ATIVO (F)' : '🚛 MONSTER TRUCK (F = fogo)', VW/2, 30);
   }
-
+  if(scene === 'galaxy'){
+    ctx.fillStyle = '#6ab8ff'; ctx.font = 'bold 18px Trebuchet MS'; ctx.textAlign = 'center';
+    ctx.fillText('🚀 MODO GALÁXIA — ' + spaceEnemies.length + ' inimigos', VW/2, 30);
+    ctx.fillStyle = '#ffd166'; ctx.font = 'bold 13px Trebuchet MS';
+    ctx.fillText('E ou G para voltar à superfície', VW/2, 52);
+  }
+  if(debug.godMode){
+    ctx.fillStyle = '#7dffb0'; ctx.font = 'bold 13px Trebuchet MS'; ctx.textAlign = 'right';
+    ctx.fillText('🛡 GODMODE', VW-20, VH-40);
+  }
   if(currentUser){
     ctx.fillStyle='#9ad8f8'; ctx.font='bold 13px Trebuchet MS'; ctx.textAlign='right';
     ctx.fillText('👤 ' + currentUser + '  •  ' + sessionBosses + ' chefes', VW-20, VH-20);
   }
 
-  if(scene === 'world'){
-    const mw = 170, mh = 170, mx = VW-mw-20, my = 20;
-    ctx.save();
-    ctx.fillStyle='rgba(0,0,0,0.6)';
-    ctx.beginPath(); ctx.roundRect(mx-4,my-4,mw+8,mh+8,10); ctx.fill();
-    ctx.strokeStyle='#3a5a80'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.roundRect(mx-4,my-4,mw+8,mh+8,10); ctx.stroke();
-    ctx.beginPath(); ctx.roundRect(mx,my,mw,mh,7); ctx.clip();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(miniCv, mx, my, mw, mh);
-    for(const d of dungeonEntrances){
-      const px = mx + (d.x/(WORLD_W*TS))*mw;
-      const py = my + (d.y/(WORLD_H*TS))*mh;
-      ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.arc(px, py, 3.5, 0, TAU); ctx.fill();
-    }
-    if(shop){
-      const px = mx + (shop.x/(WORLD_W*TS))*mw;
-      const py = my + (shop.y/(WORLD_H*TS))*mh;
-      ctx.fillStyle = '#7dffb0'; ctx.beginPath(); ctx.arc(px, py, 3, 0, TAU); ctx.fill();
-    }
-    if(bloodstain && bloodstain.scene==='world'){
-      const px = mx + (bloodstain.x/(WORLD_W*TS))*mw;
-      const py = my + (bloodstain.y/(WORLD_H*TS))*mh;
-      ctx.fillStyle='#ff4d4d'; ctx.beginPath(); ctx.arc(px,py,3,0,TAU); ctx.fill();
-    }
-    const px = mx + (player.x/(WORLD_W*TS))*mw;
-    const py = my + (player.y/(WORLD_H*TS))*mh;
-    ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(px, py, 3.6, 0, TAU); ctx.fill();
-    ctx.strokeStyle='#000'; ctx.lineWidth=1.2; ctx.stroke();
-    ctx.restore();
-  } else {
+  if(scene === 'world') drawMinimap();
+  else if(scene === 'dungeon'){
     const b = dungeon.boss;
     if(dungeon.bossActive && !b.dead){
       const bw = Math.min(720, VW*0.62), bh = 24;
@@ -2172,107 +2372,85 @@ function drawHUD(){
   }
 }
 
-/* ------------------------- INIT / LOOP ------------------------- */
+/* ---------- INIT / LOOP ---------- */
 let worldEnemies = [];
 let dungeonEntrances = [];
 let spawnX = 0, spawnY = 0;
 
 function initGame(){
-  generateWorld();
-  buildMinimap();
-  const cx = WORLD_W>>1, cy = WORLD_H>>1;
+  // find spawn
+  let sx = 0, sy = 0;
   outer:
-  for(let r=0;r<80;r++){
-    for(let a=0;a<24;a++){
-      const ang = a/24*TAU;
-      const tx = Math.round(cx + Math.cos(ang)*r);
-      const ty = Math.round(cy + Math.sin(ang)*r);
-      if(tx<2||ty<2||tx>=WORLD_W-2||ty>=WORLD_H-2) continue;
-      if(worldTiles[ty*WORLD_W+tx] === T.GRASS || worldTiles[ty*WORLD_W+tx] === T.FOREST){
-        spawnX = tx*TS + TS/2; spawnY = ty*TS + TS/2;
-        break outer;
-      }
+  for(let r = 0; r < 300; r++){
+    for(let a = 0; a < 16; a++){
+      const ang = a/16*TAU;
+      const tx = Math.round(Math.cos(ang)*r);
+      const ty = Math.round(Math.sin(ang)*r);
+      const t = getChunkTile(tx, ty);
+      if(t !== T.WATER && t !== T.ROCK){ sx = tx; sy = ty; break outer; }
     }
   }
-  if(spawnX === 0){ spawnX = cx*TS; spawnY = cy*TS; }
+  spawnX = sx*TS + TS/2; spawnY = sy*TS + TS/2;
   player.x = spawnX; player.y = spawnY;
   cam.x = player.x - VW/2; cam.y = player.y - VH/2;
 
-  // LOJA perto do spawn
-  let shopPlaced = false;
-  for(let r=80; r<220 && !shopPlaced; r+=20){
+  // shop near spawn
+  let placedShop = false;
+  for(let r=80; r<300 && !placedShop; r+=20){
     for(let a=0; a<16; a++){
       const ang = a/16*TAU;
       const tx = spawnX + Math.cos(ang)*r;
       const ty = spawnY + Math.sin(ang)*r;
-      if(walkableWorldBasic(tx, ty)){ shop = {x:tx, y:ty}; shopPlaced = true; break; }
+      if(walkableWorld(tx, ty)){ shop = {x:tx, y:ty}; placedShop = true; break; }
     }
   }
   if(!shop) shop = {x:spawnX + 90, y:spawnY};
 
   bonfires.push({x:spawnX, y:spawnY-60});
-  spawnWorldEnemies();
+
+  // spawn 400 world enemies near player
+  enemies = [];
+  let tries = 0;
+  while(enemies.length < 400 && tries < 3000){
+    tries++;
+    const ang = Math.random()*TAU, d = 400 + Math.random()*4000;
+    const x = player.x + Math.cos(ang)*d, y = player.y + Math.sin(ang)*d;
+    const t = tileAtWorld(x, y);
+    if(t === T.WATER) continue;
+    const list = BIOME_ENEMIES[t];
+    if(!list) continue;
+    const key = list[rndi(list.length)];
+    enemies.push(makeEnemy(key, x, y, 0.75 + d/3200));
+  }
   worldEnemies = enemies;
 
-  for(const b of bonfires){
-    for(let i=0;i<3;i++){
-      const a = Math.random()*TAU, r = 120 + Math.random()*220;
-      const ex = b.x + Math.cos(a)*r, ey = b.y + Math.sin(a)*r;
-      if(walkableWorldBasic(ex, ey)){
-        const keys2 = ['slime','wolf','boar','bandit'];
-        worldEnemies.push(makeEnemy(keys2[rndi(keys2.length)], ex, ey, 1.15));
-      }
-    }
-  }
-
-  const used = [];
+  // dungeons around origin at fixed ring
+  const dungeonOffsets = [
+    {x:2000, y:0}, {x:-2000, y:0}, {x:0, y:2000}, {x:0, y:-2000}, {x:1400, y:1400}
+  ];
   for(let i=0;i<DUNGEON_DEFS.length;i++){
-    let placed = false;
-    for(let a=0; a<600 && !placed; a++){
-      const tx = 14 + rndi(WORLD_W-28), ty = 14 + rndi(WORLD_H-28);
-      const t = worldTiles[ty*WORLD_W+tx];
-      if(t === T.WATER) continue;
-      const x = tx*TS+TS/2, y = ty*TS+TS/2;
-      if(dist(x,y,spawnX,spawnY) < 900) continue;
-      let ok = true;
-      for(const u of used) if(dist(x,y,u.x,u.y) < 1100){ ok=false; break; }
-      if(!ok) continue;
-      used.push({x,y});
-      dungeonEntrances.push({x, y, idx:i});
-      bonfires.push({x:x+70, y:y+70});
-      for(let k=0;k<3;k++){
-        const a2 = Math.random()*TAU, r2 = 100 + Math.random()*180;
-        const ex = x + Math.cos(a2)*r2, ey = y + Math.sin(a2)*r2;
-        if(walkableWorldBasic(ex, ey)){
-          const list = BIOME_ENEMIES[tileAtWorld(ex,ey)] || ['slime'];
-          worldEnemies.push(makeEnemy(list[rndi(list.length)], ex, ey, 1.6 + i*0.2));
-        }
+    const off = dungeonOffsets[i];
+    // find walkable near offset
+    let dx = off.x, dy = off.y;
+    for(let r=0; r<400; r+=20){
+      let found = false;
+      for(let a=0; a<12; a++){
+        const ang = a/12*TAU;
+        const tx = off.x + Math.cos(ang)*r;
+        const ty = off.y + Math.sin(ang)*r;
+        if(walkableWorld(tx, ty)){ dx = tx; dy = ty; found = true; break; }
       }
-      placed = true;
+      if(found) break;
     }
+    dungeonEntrances.push({x:dx, y:dy, idx:i});
+    bonfires.push({x:dx+70, y:dy+70});
   }
 
-  // Restaura truck se já comprou antes (via localStorage da conta)
-  if(currentUser){
-    const savedKey = 'aetheria_truck_' + currentUser;
-    if(localStorage.getItem(savedKey) === '1'){
-      player.hasTruck = true;
-      truck.exists = true;
-      truck.x = shop.x + 80; truck.y = shop.y + 30;
-    }
-  }
-
-  showHint('Bem-vindo! Visite a LOJA perto do spawn (E). Compre botas e o Monster Truck!');
+  showHint('Bem-vindo ao ALPHA v1.0! Mundo infinito. F2 = debug. G = galáxia (com nave).');
 }
 
-// salva estado do truck por conta
-const _origBuy = buyItem;
-buyItem = function(id){
-  _origBuy(id);
-  if(id === 'truck' && currentUser) localStorage.setItem('aetheria_truck_' + currentUser, '1');
-};
-
 let lastT = performance.now();
+let enemyManageTimer = 0;
 function loop(now){
   const dt = Math.min(0.05, (now-lastT)/1000);
   lastT = now;
@@ -2285,10 +2463,29 @@ function loop(now){
     hintTimer -= dt;
     if(hintTimer <= 0 && hintEl.style.opacity !== '0.25') hintEl.style.opacity = 0.25;
     updatePlayer(dt);
-    updateEnemies(dt);
-    updateHazards(dt);
-    updateFireProjectiles(dt);
+
+    if(scene === 'galaxy'){
+      updateGalaxy(dt);
+    } else {
+      updateEnemies(dt);
+      updateHazards(dt);
+      updateFireProjectiles(dt);
+    }
     updateParticles(dt);
+
+    // streaming enemies in world
+    if(scene === 'world'){
+      enemyManageTimer -= dt;
+      if(enemyManageTimer <= 0){
+        enemyManageTimer = 0.6;
+        enemies = enemies.filter(e => {
+          if(e.dead && e.respawn > 0) return true;
+          return dist(e.x, e.y, player.x, player.y) < 5500;
+        });
+        while(enemies.length < 400){ if(!spawnEnemyNearPlayer()) break; }
+        worldEnemies = enemies;
+      }
+    }
 
     if(bloodstain && bloodstain.scene === scene && dist(player.x,player.y,bloodstain.x,bloodstain.y) < 46){
       player.gold += bloodstain.amount;
@@ -2310,6 +2507,7 @@ function loop(now){
   ctx.fillStyle = '#0a0e14'; ctx.fillRect(-40,-40,VW+80,VH+80);
 
   if(scene === 'world') renderWorld();
+  else if(scene === 'galaxy') renderGalaxy();
   else renderDungeon();
 
   renderSceneEntities();
@@ -2324,7 +2522,42 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 
-/* ------------------------- BOOT ------------------------- */
+function drawBonfireOverlay(){
+  const b = player.atBonfire;
+  if(!b) return;
+  const sx = b.x - cam.x, sy = b.y - cam.y;
+  const fade = Math.min(1, bonfireAmbient / 0.5);
+  const dg = ctx.createRadialGradient(sx, sy, 80, sx, sy, Math.max(VW, VH)*0.95);
+  dg.addColorStop(0, `rgba(10,8,4,${0.25*fade})`);
+  dg.addColorStop(0.35, `rgba(6,4,2,${0.62*fade})`);
+  dg.addColorStop(1, `rgba(0,0,0,${0.9*fade})`);
+  ctx.fillStyle = dg; ctx.fillRect(0,0,VW,VH);
+  const pulse = 1 + Math.sin(gameTime*2.2)*0.12;
+  const ag = ctx.createRadialGradient(sx, sy, 4, sx, sy, 180*pulse);
+  ag.addColorStop(0, `rgba(255,244,200,${0.95*fade})`);
+  ag.addColorStop(0.18, `rgba(255,210,90,${0.7*fade})`);
+  ag.addColorStop(0.5, `rgba(255,130,30,${0.28*fade})`);
+  ag.addColorStop(1, 'rgba(255,80,0,0)');
+  ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(sx, sy, 180*pulse, 0, TAU); ctx.fill();
+  for(let i=0;i<3;i++){
+    const t = ((gameTime*0.55 + i*0.33) % 1);
+    const r = 26 + t*150;
+    ctx.strokeStyle = `rgba(255,200,100,${(1-t)*0.55*fade})`; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, TAU); ctx.stroke();
+  }
+  ctx.textAlign = 'center'; ctx.globalAlpha = fade;
+  ctx.shadowColor = '#ffb703'; ctx.shadowBlur = 24;
+  ctx.fillStyle = '#ffd166'; ctx.font = 'bold 34px Trebuchet MS';
+  ctx.fillText('🔥 FOGUEIRA', VW/2, 96);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffe9b0'; ctx.font = 'bold 17px Trebuchet MS';
+  ctx.fillText('Pressione  E  ou  Esc  para levantar', VW/2, 130);
+  ctx.fillStyle = '#9ad8f8'; ctx.font = '14px Trebuchet MS';
+  ctx.fillText('Vida e stamina restauradas • inimigos renasceram', VW/2, 158);
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- BOOT ---------- */
 window.addEventListener('load', () => {
   loadRemoteLeaderboard();
   const session = localStorage.getItem(SESSION_KEY);
